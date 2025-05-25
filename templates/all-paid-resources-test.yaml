@@ -1,0 +1,581 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Comprehensive test template with all paid AWS resources for cost estimation testing'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: test
+    Description: Environment name for resource naming
+  
+  KeyPairName:
+    Type: String
+    Default: test-keypair
+    Description: EC2 Key Pair name (must exist in the region)
+
+Resources:
+  # VPC Infrastructure (Free but needed for other resources)
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-vpc"
+
+  TestSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-subnet"
+
+  TestInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-igw"
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestInternetGateway
+
+  TestRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-rt"
+
+  TestRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref TestRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref TestInternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TestSubnet
+      RouteTableId: !Ref TestRouteTable
+
+  TestSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for test resources
+      VpcId: !Ref TestVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # IAM Role (Free but needed for other resources)
+  TestRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  TestInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref TestRole
+
+  # PAID RESOURCES START HERE
+
+  # 1. EC2 Instance
+  TestEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (will vary by region)
+      SubnetId: !Ref TestSubnet
+      SecurityGroupIds:
+        - !Ref TestSecurityGroup
+      IamInstanceProfile: !Ref TestInstanceProfile
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-ec2-instance"
+
+  # 2. EBS Volume
+  TestEBSVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Size: 100
+      VolumeType: gp3
+      AvailabilityZone: !GetAtt TestEC2Instance.AvailabilityZone
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-ebs-volume"
+
+  # 3. Elastic IP
+  TestEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-eip"
+
+  # 4. Application Load Balancer
+  TestALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${Environment}-alb"
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - !Ref TestSubnet
+      SecurityGroups:
+        - !Ref TestSecurityGroup
+
+  # 5. S3 Bucket
+  TestS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Environment}-test-bucket-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # 6. Lambda Function
+  TestLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-test-function"
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {'statusCode': 200, 'body': 'Hello World'}
+      MemorySize: 128
+      Timeout: 30
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # 7. RDS Instance
+  TestRDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS
+      SubnetIds:
+        - !Ref TestSubnet
+        - !Ref TestSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-rds-subnet-group"
+
+  TestSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-subnet-2"
+
+  TestRDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${Environment}-test-db"
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: '8.0'
+      AllocatedStorage: 20
+      MasterUsername: admin
+      MasterUserPassword: TempPassword123!
+      DBSubnetGroupName: !Ref TestRDSSubnetGroup
+      VPCSecurityGroups:
+        - !Ref TestSecurityGroup
+      BackupRetentionPeriod: 0
+      DeletionProtection: false
+
+  # 8. CloudWatch Log Group
+  TestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Environment}-test-logs"
+      RetentionInDays: 7
+
+  # 9. SNS Topic
+  TestSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${Environment}-test-topic"
+
+  # 10. SQS Queue
+  TestSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${Environment}-test-queue"
+      VisibilityTimeoutSeconds: 300
+
+  # 11. KMS Key
+  TestKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Test KMS key for encryption
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+
+  # 12. API Gateway REST API
+  TestAPIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${Environment}-test-api"
+      Description: Test API Gateway
+
+  # 13. Secrets Manager Secret
+  TestSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${Environment}-test-secret"
+      Description: Test secret for Secrets Manager
+      SecretString: !Sub |
+        {
+          "username": "admin",
+          "password": "TempPassword123!"
+        }
+
+  # 14. DynamoDB Table
+  TestDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-test-table"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # 15. NAT Gateway
+  TestNATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt TestEIP.AllocationId
+      SubnetId: !Ref TestSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-nat-gateway"
+
+  # 16. ElastiCache Cluster
+  TestElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for ElastiCache
+      SubnetIds:
+        - !Ref TestSubnet
+        - !Ref TestSubnet2
+
+  TestElastiCacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      CacheNodeType: cache.t3.micro
+      Engine: redis
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref TestElastiCacheSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref TestSecurityGroup
+
+  # 17. EKS Cluster
+  EKSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  TestEKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub "${Environment}-test-cluster"
+      Version: '1.21'
+      RoleArn: !GetAtt EKSServiceRole.Arn
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !Ref TestSubnet
+          - !Ref TestSubnet2
+
+  # 18. Route 53 Hosted Zone
+  TestHostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Sub "${Environment}.example.com"
+
+  # 19. CloudWatch Dashboard
+  TestDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${Environment}-test-dashboard"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/EC2", "CPUUtilization", "InstanceId", "${TestEC2Instance}" ]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "EC2 Instance CPU"
+              }
+            }
+          ]
+        }
+
+  # 20. CloudWatch Alarm
+  TestAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${Environment}-test-alarm"
+      AlarmDescription: Test alarm for EC2 CPU utilization
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref TestEC2Instance
+
+  # 21. Step Functions State Machine
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt TestLambdaFunction.Arn
+
+  TestStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub "${Environment}-test-state-machine"
+      StateMachineType: STANDARD
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "A Hello World example",
+          "StartAt": "HelloWorld",
+          "States": {
+            "HelloWorld": {
+              "Type": "Task",
+              "Resource": "${TestLambdaFunction.Arn}",
+              "End": true
+            }
+          }
+        }
+
+  # 22. ECR Repository
+  TestECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${Environment}-test-repo"
+      ImageScanningConfiguration:
+        ScanOnPush: false
+
+  # 23. EFS File System
+  TestEFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      CreationToken: !Sub "${Environment}-test-efs"
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting
+      Encrypted: true
+
+  # 24. CodeBuild Project
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  TestCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${Environment}-test-project"
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            build:
+              commands:
+                - echo "Hello World"
+
+  # 25. CloudTrail
+  CloudTrailS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Environment}-cloudtrail-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CloudTrailS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CloudTrailS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt CloudTrailS3Bucket.Arn
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "${CloudTrailS3Bucket.Arn}/*"
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': bucket-owner-full-control
+
+  TestCloudTrail:
+    Type: AWS::CloudTrail::Trail
+    DependsOn: CloudTrailS3BucketPolicy
+    Properties:
+      TrailName: !Sub "${Environment}-test-trail"
+      S3BucketName: !Ref CloudTrailS3Bucket
+      IncludeGlobalServiceEvents: true
+      IsLogging: true
+      IsMultiRegionTrail: false
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref TestVPC
+    Export:
+      Name: !Sub "${Environment}-VPC-ID"
+
+  EC2InstanceId:
+    Description: EC2 Instance ID
+    Value: !Ref TestEC2Instance
+
+  RDSEndpoint:
+    Description: RDS Instance Endpoint
+    Value: !GetAtt TestRDSInstance.Endpoint.Address
+
+  S3BucketName:
+    Description: S3 Bucket Name
+    Value: !Ref TestS3Bucket
+
+  LambdaFunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt TestLambdaFunction.Arn
+
+  ALBDNSName:
+    Description: Application Load Balancer DNS Name
+    Value: !GetAtt TestALB.DNSName
+
+  EKSClusterName:
+    Description: EKS Cluster Name
+    Value: !Ref TestEKSCluster
+
+  ResourceCount:
+    Description: Total number of paid resources in this template
+    Value: "25" 

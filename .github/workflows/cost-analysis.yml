@@ -1,0 +1,91 @@
+name: CloudFormation Cost Analysis
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  cost-analysis:
+    if: |
+      github.event_name == 'issue_comment' && 
+      contains(github.event.comment.body, '/cost-estimate') ||
+      github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Get current stack template
+        if: github.event_name == 'pull_request'
+        run: |
+          aws cloudformation get-template --stack-name ${{ github.event.pull_request.head.ref }} --query 'TemplateBody' --output text > current-stack.yaml
+      
+      - name: Get proposed stack template
+        if: github.event_name == 'pull_request'
+        run: |
+          aws cloudformation get-template --stack-name ${{ github.event.pull_request.head.ref }} --query 'TemplateBody' --output text > proposed-stack.yaml
+      
+      - name: Run cost analysis
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+        run: |
+          if [ "${{ github.event_name }}" == "issue_comment" ]; then
+            # For comment-based triggers, analyze the PR's changes
+            PR_NUMBER=$(echo ${{ github.event.issue.number }})
+            python src/main.py current-stack.yaml proposed-stack.yaml github > cost-report.md
+          else
+            # For PR events, analyze the changes
+            python src/main.py current-stack.yaml proposed-stack.yaml github > cost-report.md
+          fi
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('cost-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+      
+      - name: Comment on issue
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('cost-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            }); 

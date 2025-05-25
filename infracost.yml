@@ -1,0 +1,6 @@
+version: 0.1
+
+projects:
+  - name: cloudformation-stack
+    path: templates/test-stack.yaml
+    type: cloudformation 
