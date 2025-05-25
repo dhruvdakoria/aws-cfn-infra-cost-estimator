@@ -94,7 +94,8 @@ class InfracostEstimator(CostEstimator):
                     break
             
             # Get pricing model information
-            pricing_model, base_cost, pricing_details, unit = get_pricing_info(resource_type)
+            region = resource_properties.get("Region", "us-east-1")
+            pricing_model, base_cost, pricing_details, unit = get_pricing_info(resource_type, region)
             
             # For usage-based resources, provide meaningful cost information
             if pricing_model == "usage_based" and usd == 0.0:

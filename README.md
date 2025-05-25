@@ -6,6 +6,10 @@ A comprehensive Python-based solution to estimate costs of AWS CloudFormation st
 
 - **Comprehensive Resource Support**: Supports 88 paid AWS resources (100% coverage) and 247+ free resources
 - **Accurate Pricing**: Fixed query builders for all major AWS services with correct attribute filters
+- **Dynamic Pricing**: Real-time pricing fetched from Infracost API for usage-based resources
+- **Cost Breakdown Tables**: Clean, formatted cost breakdown tables for easy analysis
+- **Template Comparison**: Compare costs between different CloudFormation templates
+- **Single Template Analysis**: Analyze costs for new deployments (same template for old and new)
 - **Modular Architecture**: Clean separation of concerns with dedicated modules for resource mappings, query builders, and cost estimation
 - **Infracost API Integration**: Primary cost estimation using Infracost GraphQL API with optimized queries
 - **AWS Pricing API Fallback**: Secondary cost estimation using AWS Pricing API
@@ -16,7 +20,31 @@ A comprehensive Python-based solution to estimate costs of AWS CloudFormation st
 
 ## 🔧 Recent Improvements
 
-### Pricing Model Revolution (v3.0) 🎯
+### Cost Breakdown Tables (v4.0) 📊
+
+**MAJOR UPDATE**: Complete redesign of output formatting with clean, professional cost breakdown tables.
+
+**✅ NEW FEATURES**:
+- **Clean Table Format**: Professional grid-based tables with clear cost information
+- **Single Template Analysis**: Pass the same template twice to analyze new deployment costs
+- **Cost Comparison**: Compare costs between different templates with impact analysis
+- **Smart Resource Grouping**: Paid resources first, then usage-based, then free resources
+- **Reduced Logging**: Clean output without verbose logging messages
+- **Multiple Output Formats**: Table (default), GitHub comment, or full report formats
+
+**📊 Example Usage**:
+```bash
+# Analyze costs for a new deployment
+python3 src/main.py template.yaml template.yaml
+
+# Compare costs between templates
+python3 src/main.py old-template.yaml new-template.yaml
+
+# Generate GitHub comment format
+python3 src/main.py old.yaml new.yaml github
+```
+
+### Dynamic Pricing Revolution (v3.0) 🎯
 
 **MAJOR UPDATE**: Completely redesigned how usage-based pricing is displayed and explained.
 
@@ -25,6 +53,7 @@ A comprehensive Python-based solution to estimate costs of AWS CloudFormation st
 SNS Topic: $0.00/month (misleading!)
 KMS Key: $0.00/month (confusing!)
 API Gateway: $0.00/month (unclear!)
+VPC: Usage-based (wrong for free resources!)
 ```
 
 **✅ AFTER**: Clear, informative pricing with detailed explanations
@@ -32,35 +61,18 @@ API Gateway: $0.00/month (unclear!)
 📊 SNS Topic: Usage-based - $0.50 per 1M requests + notification costs
 💰 KMS Key: $1.00/month per key + $0.03 per 10K requests  
 📊 API Gateway: Usage-based - $3.50 per 1M requests + data transfer
+🆓 VPC: Free - This resource is free to use
 ```
 
 ### Key Improvements:
 
 - **🎯 Smart Pricing Models**: Distinguishes between fixed, usage-based, and free resources
 - **📊 Detailed Usage Information**: Shows actual pricing structure for usage-based resources
-- **💡 Meaningful Cost Display**: Replaces confusing $0.00 with "Usage-based" and details
+- **💡 Meaningful Cost Display**: Free resources show "Free", usage-based show "Usage-based" with details
+- **🔄 Dynamic Pricing**: Real-time pricing fetched from Infracost API instead of hardcoded values
 - **📈 Usage Estimation**: Provides estimated costs based on typical usage patterns
 - **🎨 Better Visual Indicators**: Clear emojis and formatting for different pricing models
-
-### Fixed Pricing Issues (v2.0)
-
-All major AWS services now return accurate pricing through improved query builders:
-
-- **✅ RDS**: Fixed database engine case sensitivity and attribute filters
-- **✅ S3**: Corrected storage class and usage type filters  
-- **✅ Lambda**: Fixed serverless compute pricing queries
-- **✅ CloudWatch**: Implemented correct data payload pricing
-- **✅ SNS/SQS**: Fixed API request pricing patterns
-- **✅ KMS**: Corrected key management service pricing
-- **✅ API Gateway**: Fixed REST and HTTP API pricing
-- **✅ Secrets Manager**: Implemented correct secret pricing format
-
-### Query Builder Enhancements
-
-- Service-specific attribute filters based on Infracost API exploration
-- Correct usage type patterns for each AWS service
-- Proper region code formatting for regional services
-- Optimized GraphQL queries for better performance
+- **💾 Comprehensive Database**: JSON export of all 335 resources with pricing in multiple regions
 
 ## 📁 Project Structure
 
@@ -73,16 +85,19 @@ All major AWS services now return accurate pricing through improved query builde
 │   │   ├── infracost.py            # Infracost API integration
 │   │   ├── aws_pricing.py          # AWS Pricing API integration
 │   │   ├── resource_mappings.py    # Terraform to CloudFormation mappings
-│   │   └── query_builders.py       # GraphQL query builders by service
+│   │   ├── query_builders.py       # GraphQL query builders by service
+│   │   ├── pricing_models.py       # Pricing model definitions (no hardcoded values)
+│   │   └── dynamic_pricing.py      # Real-time pricing fetcher
 │   ├── stack_analyzer/
 │   │   ├── __init__.py
 │   │   ├── parser.py               # CloudFormation template parsing
 │   │   └── diff.py                 # Stack diff analysis
 │   └── formatter/
 │       ├── __init__.py
-│       └── output.py               # Output formatting
+│       └── output.py               # Output formatting with table support
 ├── templates/
-│   └── test-paid-resources.yaml   # Comprehensive test template
+│   ├── comprehensive-test-stack.yaml   # Basic test template
+│   └── all-paid-resources-test.yaml    # Comprehensive paid resources test
 ├── tests/
 |   ├── test_cost_estimation.py        # Comprehensive test suite
 ├── requirements.txt
@@ -115,49 +130,79 @@ All major AWS services now return accurate pricing through improved query builde
 
 ## 🔧 Usage
 
-### Basic Cost Estimation
-
-```python
-from src.cost_estimator.infracost import InfracostEstimator
-from src.stack_analyzer.parser import CloudFormationParser
-
-# Initialize the cost estimator
-estimator = InfracostEstimator()
-
-# Parse CloudFormation template
-with open('your-template.yaml', 'r') as f:
-    template_content = f.read()
-parser = CloudFormationParser(template_content)
-
-# Get cost estimates for all resources
-total_cost = 0.0
-for resource in parser.get_resources():
-    if estimator.is_resource_supported(resource.type):
-        properties = resource.properties.copy()
-        properties["Region"] = "us-east-1"
-        properties["id"] = resource.logical_id
-        
-        cost = estimator.get_resource_cost(resource.type, properties)
-        total_cost += cost.monthly_cost
-        
-        print(f"{resource.logical_id}: ${cost.monthly_cost:.2f}/month")
-
-print(f"Total estimated monthly cost: ${total_cost:.2f}")
-```
-
 ### Command Line Usage
 
 ```bash
-# Run comprehensive tests
-python3 test/test_cost_estimation.py
+# Analyze costs for a new deployment (same template for both parameters)
+python3 src/main.py template.yaml template.yaml
 
-# Test with your own template
-python3 -c "
+# Compare costs between different templates
+python3 src/main.py old-template.yaml new-template.yaml
+
+# Generate different output formats
+python3 src/main.py old.yaml new.yaml table    # Default: clean table format
+python3 src/main.py old.yaml new.yaml github   # GitHub comment format
+python3 src/main.py old.yaml new.yaml full     # Full detailed report
+```
+
+### Example Output
+
+**Single Template Analysis:**
+```
+# 💰 CloudFormation Stack Cost Breakdown
+============================================================
+
+## 📊 Cost Summary
+💰 Fixed Monthly Cost: $109.94
+⏰ Fixed Hourly Cost: $0.1506
+📊 Usage-Based Resources: 3 (costs depend on usage)
+🆓 Free Resources: 19
+💵 Paid Resources: 4
+
+## 📋 Detailed Resource Breakdown
++----------------------------------------+-------------------------+----------------+
+| Resource Type                          | Resource ID             | Monthly Cost   |
++========================================+=========================+================+
+| 💰 EC2::Instance                        | WebServer               | $8.47/month    |
+| 💰 RDS::DBInstance                      | Database                | $24.82/month   |
+| 📊 S3::Bucket                           | DataBucket              | Usage-based    |
+| 🆓 EC2::VPC                             | VPC                     | Free           |
++----------------------------------------+-------------------------+----------------+
+```
+
+**Template Comparison:**
+```
+# 💰 CloudFormation Stack Cost Comparison
+============================================================
+
+## 📊 Cost Impact Summary
+💵 Current Monthly Cost: $109.94
+💰 New Monthly Cost: $449.97
+📈 Monthly Cost INCREASE: $+340.03 (+309.3%)
+
+## 🔄 Resource Changes Summary
+➕ Added: 25 resources
+❌ Removed: 0 resources
+🔄 Modified: 0 resources
+```
+
+### Programmatic Usage
+
+```python
 from src.main import CostEstimator
+
+# Initialize the cost estimator
 estimator = CostEstimator()
-result = estimator.estimate_costs('old-template.yaml', 'new-template.yaml')
-print(result)
-"
+
+# Read template files
+with open('old-template.yaml', 'r') as f:
+    old_template = f.read()
+with open('new-template.yaml', 'r') as f:
+    new_template = f.read()
+
+# Generate cost report
+report = estimator.estimate_costs(old_template, new_template, "table")
+print(report)
 ```
 
 ## 📊 Supported AWS Resources
@@ -193,6 +238,8 @@ The project includes a comprehensive test suite that validates:
 3. **Infracost Integration**: API connectivity and response parsing
 4. **CloudFormation Parsing**: Template parsing with intrinsic functions
 5. **End-to-End Workflow**: Complete cost estimation pipeline
+6. **Dynamic Pricing**: Real-time pricing fetcher validation
+7. **Output Formatting**: Table generation and formatting
 
 Run tests:
 ```bash
@@ -210,78 +257,12 @@ Expected output:
 🎉 All tests passed!
 ```
 
-### Pricing Validation
+## 📋 Test Templates
 
-Run the final pricing test to verify all resources return correct pricing:
-```bash
-python3 tests/final_pricing_test.py
-```
+The project includes comprehensive test templates:
 
-Expected output:
-```
-🎯 FINAL PRICING TEST RESULTS
-============================================================
-✅ RDS Instance         $   24.82/month
-✅ S3 Bucket            $   16.79/month
-✅ Lambda Function      $    0.01/month
-✅ CloudWatch Logs      $  365.00/month
-✅ SNS Topic            $    0.00/month
-✅ SQS Queue            $    0.00/month
-✅ KMS Key              $    0.00/month
-✅ API Gateway          $    0.00/month
-✅ Secrets Manager      $  292.00/month
-============================================================
-📊 SUMMARY: 9/9 resources now return pricing
-🎉 ALL PRICING ISSUES FIXED!
-```
-
-## 📋 Test Template
-
-The project includes a comprehensive test template (`templates/test-paid-resources.yaml`) with:
-
-- **16 Paid Resources**: EC2 instances, RDS database, S3 bucket, Lambda function, etc.
-- **17 Free Resources**: VPC, subnets, security groups, IAM roles, etc.
-- **Real-world Architecture**: Multi-tier web application with database, caching, and monitoring
-
-## 🔍 Resource Mapping Details
-
-### Terraform to CloudFormation Mapping
-
-The estimator uses comprehensive mappings based on [Infracost's supported resources](https://www.infracost.io/docs/supported_resources/aws/):
-
-```python
-# Example mapping
-"AWS::EC2::Instance": {
-    "service": "AmazonEC2",
-    "productFamily": "Compute Instance", 
-    "terraform_equivalent": "aws_instance"
-}
-```
-
-### Query Builder Architecture
-
-Each AWS service has dedicated query builders with service-specific attribute filters:
-
-```python
-# Example EC2 query builder
-def build_instance_query(properties):
-    return f'''
-    {{
-      products(filter: {{
-        vendorName: "aws",
-        service: "AmazonEC2",
-        productFamily: "Compute Instance",
-        region: "{region}",
-        attributeFilters: [
-          {{ key: "instanceType", value: "{instance_type}" }}
-          {{ key: "operatingSystem", value: "{operating_system}" }}
-        ]
-      }}) {{
-        prices(filter: {{purchaseOption: "on_demand"}}) {{ USD }}
-      }}
-    }}
-    '''
-```
+- **`comprehensive-test-stack.yaml`**: Basic multi-tier web application
+- **`all-paid-resources-test.yaml`**: Comprehensive test with 40+ paid resources
 
 ## 🔑 API Keys
 
@@ -328,12 +309,7 @@ jobs:
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         run: |
-          python3 -c "
-          from src.main import CostEstimator
-          estimator = CostEstimator()
-          result = estimator.estimate_costs('old-template.yaml', 'new-template.yaml', 'github')
-          print(result)
-          "
+          python3 src/main.py old-template.yaml new-template.yaml github
 ```
 
 ## 🔧 Troubleshooting
@@ -342,29 +318,16 @@ jobs:
 
 **Understanding Pricing Models:**
 
-The cost estimator now clearly distinguishes between different pricing models:
+The cost estimator clearly distinguishes between different pricing models:
 
 - **Fixed Pricing** 💰: Resources with predictable hourly/monthly costs (EC2, RDS, etc.)
 - **Usage-Based Pricing** 📊: Resources that charge based on actual usage
-  - **SNS Topics**: $0.50 per 1M requests + notification costs
-  - **SQS Queues**: $0.40 per 1M requests (first 1M free monthly)
-  - **KMS Keys**: $1.00 per key per month + $0.03 per 10K requests
-  - **API Gateway**: $3.50 per 1M requests + data transfer
-  - **Lambda**: $0.20 per 1M requests + $0.0000166667 per GB-second
-- **Free Resources** 🆓: No charges (IAM roles, VPC components, etc.)
-
-**High CloudWatch Logs cost ($365/month)?**
-
-This represents data processing costs. Actual costs depend on:
-- Log volume ingested
-- Retention period
-- Query frequency
-
-**Secrets Manager cost ($292/month)?**
-
-This is the monthly cost per secret stored. Actual costs depend on:
-- Number of secrets
-- API calls for secret retrieval
+  - **SNS Topics**: Per request + notification delivery costs
+  - **SQS Queues**: Per request with free tier
+  - **KMS Keys**: Per key per month + per request charges
+  - **API Gateway**: Per request + data transfer
+  - **Lambda**: Per request + per GB-second
+- **Free Resources** 🆓: No direct charges (IAM roles, VPC components, etc.)
 
 ### Common Issues
 
@@ -388,7 +351,7 @@ This is the monthly cost per secret stored. Actual costs depend on:
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/new-feature`
 3. Make your changes and add tests
-4. Run the test suite: `python3 test/test_cost_estimation.py`
+4. Run the test suite: `python3 tests/test_cost_estimation.py`
 5. Commit your changes: `git commit -am 'Add new feature'`
 6. Push to the branch: `git push origin feature/new-feature`
 7. Submit a pull request

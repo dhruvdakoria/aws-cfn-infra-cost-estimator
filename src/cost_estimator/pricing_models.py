@@ -1,9 +1,13 @@
 """
 Pricing models and details for AWS resources.
 This module provides detailed pricing information for resources that have usage-based pricing.
+Now uses dynamic pricing fetcher for real-time pricing instead of hardcoded values.
 """
 
 from typing import Dict, Optional, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Pricing model definitions
 PRICING_MODELS = {
@@ -11,77 +15,77 @@ PRICING_MODELS = {
     "AWS::SNS::Topic": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Pay per request: $0.50 per 1M requests, $0.06 per 100K HTTP/S notifications, $0.75 per 100K SMS",
+        "details": "Pay per request and notification delivery",
         "unit": "per request/notification"
     },
     
     "AWS::SQS::Queue": {
         "model": "usage_based", 
         "base_cost": 0.0,
-        "details": "Pay per request: $0.40 per 1M requests (first 1M free per month)",
+        "details": "Pay per request with free tier",
         "unit": "per request"
     },
     
     "AWS::KMS::Key": {
         "model": "usage_based",
-        "base_cost": 1.0,  # $1/month per key
-        "details": "Customer managed keys: $1/month per key + $0.03 per 10K requests",
+        "base_cost": 0.0,
+        "details": "Customer managed keys with per-request charges",
         "unit": "per key + per request"
     },
     
     "AWS::ApiGateway::RestApi": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Pay per request: $3.50 per 1M requests + data transfer costs",
+        "details": "Pay per request plus data transfer",
         "unit": "per request"
     },
     
     "AWS::ApiGatewayV2::Api": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "HTTP APIs: $1.00 per 1M requests, WebSocket APIs: $1.00 per 1M messages",
+        "details": "HTTP APIs and WebSocket APIs pricing",
         "unit": "per request/message"
     },
     
     "AWS::CloudWatch::Alarm": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Standard alarms: $0.10 per alarm per month, High-resolution alarms: $0.30 per alarm per month",
+        "details": "Standard and high-resolution alarm pricing",
         "unit": "per alarm per month"
     },
     
     "AWS::CloudWatch::Dashboard": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "First 3 dashboards free, then $3.00 per dashboard per month",
+        "details": "Dashboard pricing with free tier",
         "unit": "per dashboard per month"
     },
     
     "AWS::StepFunctions::StateMachine": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Standard workflows: $0.025 per 1K state transitions, Express workflows: $1.00 per 1M requests",
+        "details": "Standard and Express workflow pricing",
         "unit": "per state transition/request"
     },
     
     "AWS::Route53::HostedZone": {
         "model": "usage_based",
-        "base_cost": 0.5,  # $0.50 per hosted zone per month
-        "details": "Hosted zones: $0.50 per zone per month + $0.40 per 1M queries",
+        "base_cost": 0.0,
+        "details": "Hosted zone and query pricing",
         "unit": "per zone + per query"
     },
     
     "AWS::Route53::HealthCheck": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Health checks: $0.50 per health check per month",
+        "details": "Health check monitoring",
         "unit": "per health check per month"
     },
     
     "AWS::DynamoDB::Table": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "On-demand: $1.25 per 1M write requests, $0.25 per 1M read requests + storage costs",
+        "details": "On-demand or provisioned capacity pricing",
         "unit": "per request + storage"
     },
     
@@ -95,28 +99,28 @@ PRICING_MODELS = {
     "AWS::ECR::Repository": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Storage: $0.10 per GB per month, Data transfer: varies by region",
+        "details": "Storage and data transfer pricing",
         "unit": "per GB storage + data transfer"
     },
     
     "AWS::EFS::FileSystem": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Standard storage: $0.30 per GB per month, Infrequent Access: $0.025 per GB per month",
+        "details": "Storage class based pricing",
         "unit": "per GB per month"
     },
     
     "AWS::CodeBuild::Project": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Build minutes: $0.005 per minute (general1.small), varies by compute type",
+        "details": "Build minutes by compute type",
         "unit": "per build minute"
     },
     
     "AWS::CloudTrail::Trail": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Management events: First trail free, additional trails $2.00 per 100K events",
+        "details": "Management and data event pricing",
         "unit": "per 100K events"
     },
     
@@ -130,7 +134,7 @@ PRICING_MODELS = {
     "AWS::Backup::BackupVault": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Backup storage: $0.05 per GB per month, varies by storage class",
+        "details": "Backup storage by storage class",
         "unit": "per GB per month"
     },
     
@@ -144,28 +148,28 @@ PRICING_MODELS = {
     "AWS::SSM::Parameter": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Standard parameters: Free, Advanced parameters: $0.05 per 10K requests",
+        "details": "Standard parameters free, advanced parameters charged",
         "unit": "per 10K requests (advanced only)"
     },
     
     "AWS::SSM::Activation": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Managed instances: $0.00695 per managed instance per hour",
+        "details": "Managed instance pricing",
         "unit": "per managed instance per hour"
     },
     
     "AWS::WAF::WebACL": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Web ACL: $1.00 per month + $0.60 per 1M requests + rule costs",
+        "details": "Web ACL and rule pricing",
         "unit": "per ACL + per request + per rule"
     },
     
     "AWS::WAFv2::WebACL": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Web ACL: $1.00 per month + $0.60 per 1M requests + rule costs",
+        "details": "Web ACL and rule pricing",
         "unit": "per ACL + per request + per rule"
     },
     
@@ -187,51 +191,71 @@ PRICING_MODELS = {
     "AWS::S3::Bucket": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Standard storage: $0.023 per GB per month + request costs",
+        "details": "Storage and request pricing by storage class",
         "unit": "per GB storage + per request"
     },
     
     "AWS::Lambda::Function": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Requests: $0.20 per 1M requests + $0.0000166667 per GB-second",
+        "details": "Request and compute duration pricing",
         "unit": "per request + per GB-second"
     },
     
     "AWS::Logs::LogGroup": {
         "model": "usage_based",
         "base_cost": 0.0,
-        "details": "Ingestion: $0.50 per GB + Storage: $0.03 per GB per month",
+        "details": "Log ingestion and storage pricing",
         "unit": "per GB ingested + per GB stored"
     },
     
     "AWS::SecretsManager::Secret": {
         "model": "fixed",
-        "base_cost": 0.4,  # $0.40 per secret per month
-        "details": "Secrets: $0.40 per secret per month + $0.05 per 10K API calls",
+        "base_cost": 0.0,
+        "details": "Secret storage and API call pricing",
         "unit": "per secret per month + per API call"
     }
 }
 
-def get_pricing_info(resource_type: str) -> Tuple[str, float, str, str]:
+def get_pricing_info(resource_type: str, region: str = "us-east-1") -> Tuple[str, float, str, str]:
     """
     Get pricing information for a resource type.
+    Now uses dynamic pricing fetcher for real-time pricing.
     
     Returns:
         Tuple of (pricing_model, base_cost, details, unit)
     """
-    info = PRICING_MODELS.get(resource_type, {
+    # First check if we have static model information
+    static_info = PRICING_MODELS.get(resource_type, {
         "model": "unknown",
         "base_cost": 0.0,
         "details": "Pricing information not available",
         "unit": "unknown"
     })
     
+    # For usage-based resources, try to get dynamic pricing
+    if static_info["model"] == "usage_based":
+        try:
+            from .dynamic_pricing import get_dynamic_pricing_fetcher
+            fetcher = get_dynamic_pricing_fetcher()
+            dynamic_info = fetcher.get_usage_based_pricing(resource_type, region)
+            
+            if dynamic_info and dynamic_info.get("pricing_details"):
+                return (
+                    static_info["model"],
+                    dynamic_info.get("base_cost", 0.0),
+                    dynamic_info.get("pricing_details", static_info["details"]),
+                    static_info["unit"]
+                )
+        except Exception as e:
+            logger.warning(f"Failed to fetch dynamic pricing for {resource_type}: {str(e)}")
+    
+    # Fall back to static information
     return (
-        info["model"],
-        info["base_cost"] or 0.0,
-        info["details"],
-        info["unit"]
+        static_info["model"],
+        static_info["base_cost"] or 0.0,
+        static_info["details"],
+        static_info["unit"]
     )
 
 def is_usage_based_resource(resource_type: str) -> bool:

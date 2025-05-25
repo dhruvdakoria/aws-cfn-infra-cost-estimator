@@ -11,9 +11,9 @@ from stack_analyzer.parser import CloudFormationParser
 from stack_analyzer.diff import StackDiffAnalyzer, ResourceDiff
 from formatter.output import CostReportFormatter
 
-# Configure logging
+# Configure logging to be less verbose
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,  # Changed from INFO to WARNING
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ class CostEstimator:
         
         # Get region from parameter, environment variable, or default
         self.aws_region = aws_region or os.getenv("AWS_REGION") or "us-east-1"
-        logger.info(f"Using AWS region: {self.aws_region}")
         
         # Initialize cost estimators
         self.infracost = InfracostEstimator(infracost_api_key)
@@ -37,11 +36,18 @@ class CostEstimator:
         self,
         old_template: str,
         new_template: str,
-        output_format: str = "github"
+        output_format: str = "table"
     ) -> str:
         """Estimate costs for CloudFormation stack changes."""
         try:
-            # Analyze stack differences
+            # Check if templates are the same (new deployment scenario)
+            if old_template.strip() == new_template.strip():
+                # Same template - show cost breakdown for new deployment
+                new_parser = CloudFormationParser(new_template)
+                new_costs = self._get_resource_costs(new_parser)
+                return CostReportFormatter.format_single_template_breakdown(new_costs)
+            
+            # Different templates - analyze differences
             diff_analyzer = StackDiffAnalyzer(old_template, new_template)
             resource_diffs = diff_analyzer.get_resource_diffs()
             
@@ -52,6 +58,10 @@ class CostEstimator:
             # Format the report
             if output_format == "github":
                 return CostReportFormatter.format_github_comment(
+                    old_costs, new_costs, resource_diffs
+                )
+            elif output_format == "table":
+                return CostReportFormatter.format_cost_comparison_table(
                     old_costs, new_costs, resource_diffs
                 )
             else:
@@ -92,14 +102,6 @@ class CostEstimator:
                 
                 costs.append(cost)
                 
-                # Log pricing information for better visibility
-                if cost.pricing_model == "usage_based":
-                    logger.info(f"📊 {resource.logical_id} ({resource.type}): Usage-based pricing - {cost.pricing_details}")
-                elif cost.monthly_cost > 0:
-                    logger.info(f"💰 {resource.logical_id} ({resource.type}): ${cost.monthly_cost:.2f}/month")
-                else:
-                    logger.info(f"🆓 {resource.logical_id} ({resource.type}): Free resource")
-                
             except Exception as e:
                 logger.error(f"Error getting cost for resource {resource.logical_id}: {str(e)}")
                 continue
@@ -110,11 +112,13 @@ def main():
     """Main entry point for the script."""
     if len(sys.argv) < 3:
         print("Usage: python main.py <old_template_file> <new_template_file> [output_format]")
+        print("  output_format: table (default), github, full")
+        print("  Note: If same template is passed for both old and new, shows cost breakdown for new deployment")
         sys.exit(1)
     
     old_template_file = sys.argv[1]
     new_template_file = sys.argv[2]
-    output_format = sys.argv[3] if len(sys.argv) > 3 else "github"
+    output_format = sys.argv[3] if len(sys.argv) > 3 else "table"
     
     try:
         # Read template files
