@@ -1,0 +1,126 @@
+🌍 Using AWS region: ca-central-1
+# 💰 CloudFormation Stack Cost Comparison
+============================================================
+
+## 📊 Cost Impact Summary
+💵 **Current Monthly Cost**: $120.67
+💰 **New Monthly Cost**: $465.81
+📈 **Monthly Cost INCREASE**: $+345.14 (+286.0%)
+
+## 🔄 Resource Changes Summary
+➕ **Added**: 0 resources
+❌ **Removed**: 0 resources
+🔄 **Modified**: 0 resources
+
+## 📋 New Template Cost Breakdown
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| Resource Type                          | Resource ID           | Monthly Cost   | Pricing Details                                    |
++========================================+=======================+================+====================================================+
+| 💰 EC2::Instance                        | TestEC2Instance       | $8.47/month    | On-demand pricing varies by instance type and r... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 EC2::Volume                          | TestEBSVolume         | $64.24/month   | No details available                               |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 EC2::EIP                             | TestEIP               | $3.65/month    | No details available                               |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 ElasticLoadBalancingV2::LoadBalancer | TestALB               | $20.07/month   | No details available                               |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 RDS::DBInstance                      | TestRDSInstance       | $27.01/month   | On-demand pricing varies by instance class, eng... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 SecretsManager::Secret               | TestSecret            | $292.00/month  | Secret storage and API call pricing                |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 EC2::NatGateway                      | TestNATGateway        | $36.50/month   | No details available                               |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 💰 ElastiCache::CacheCluster            | TestElastiCacheClu... | $13.87/month   | No details available                               |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 S3::Bucket                           | TestS3Bucket          | Usage-based    | Standard storage: $0.025 per GB per month + req... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 Lambda::Function                     | TestLambdaFunction    | Usage-based    | $0.20 per 1M requests + $0.0000166667 per GB-se... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 Logs::LogGroup                       | TestLogGroup          | Usage-based    | Ingestion: $0.55 per GB + Storage: $0.03 per GB... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 SNS::Topic                           | TestSNSTopic          | Usage-based    | $0.00 per 1M requests + notification delivery c... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 SQS::Queue                           | TestSQSQueue          | Usage-based    | $0.00 per 1M requests (first 1M free per month)    |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 KMS::Key                             | TestKMSKey            | Usage-based    | Customer managed keys with per-request charges     |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 ApiGateway::RestApi                  | TestAPIGateway        | Usage-based    | $0.00 per 1M requests + data transfer costs        |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 Route53::HostedZone                  | TestHostedZone        | Usage-based    | Hosted zone and query pricing                      |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 CloudWatch::Dashboard                | TestDashboard         | Usage-based    | Dashboard pricing with free tier                   |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 CloudWatch::Alarm                    | TestAlarm             | Usage-based    | Standard alarms: $0.10 per alarm per month, Hig... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 StepFunctions::StateMachine          | TestStateMachine      | Usage-based    | Standard and Express workflow pricing              |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 ECR::Repository                      | TestECRRepository     | Usage-based    | Storage and data transfer pricing                  |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 EFS::FileSystem                      | TestEFSFileSystem     | Usage-based    | Storage class based pricing                        |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 CodeBuild::Project                   | TestCodeBuildProje... | Usage-based    | Build minutes by compute type                      |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 S3::Bucket                           | CloudTrailS3Bucket    | Usage-based    | Standard storage: $0.025 per GB per month + req... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 📊 CloudTrail::Trail                    | TestCloudTrail        | Usage-based    | Management and data event pricing                  |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::VPC                             | TestVPC               | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::Subnet                          | TestSubnet            | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::InternetGateway                 | TestInternetGatewa... | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::VPCGatewayAttachment            | AttachGateway         | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::RouteTable                      | TestRouteTable        | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::Route                           | TestRoute             | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::SubnetRouteTableAssociation     | SubnetRouteTableAs... | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::SecurityGroup                   | TestSecurityGroup     | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 IAM::Role                            | TestRole              | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 IAM::InstanceProfile                 | TestInstanceProfil... | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 IAM::Role                            | LambdaRole            | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 RDS::DBSubnetGroup                   | TestRDSSubnetGroup    | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 EC2::Subnet                          | TestSubnet2           | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 DynamoDB::Table                      | TestDynamoDBTable     | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 ElastiCache::SubnetGroup             | TestElastiCacheSub... | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 IAM::Role                            | EKSServiceRole        | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 IAM::Role                            | StepFunctionsRole     | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 IAM::Role                            | CodeBuildServiceRo... | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| 🆓 S3::BucketPolicy                     | CloudTrailS3Bucket... | Free           | This resource is free to use                       |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+| ❓ EKS::Cluster                         | TestEKSCluster        | Unknown        | EKS cluster: $0.10 per hour ($73/month) + worke... |
++----------------------------------------+-----------------------+----------------+----------------------------------------------------+
+
+## 📊 Usage-Based Pricing Details
+These resources charge based on actual usage:
+
+• **S3::Bucket** (TestS3Bucket): Standard storage: $0.025 per GB per month + request costs
+• **Lambda::Function** (TestLambdaFunction): $0.20 per 1M requests + $0.0000166667 per GB-second
+• **Logs::LogGroup** (TestLogGroup): Ingestion: $0.55 per GB + Storage: $0.03 per GB per month
+• **SNS::Topic** (TestSNSTopic): $0.00 per 1M requests + notification delivery costs
+• **SQS::Queue** (TestSQSQueue): $0.00 per 1M requests (first 1M free per month)
+• **KMS::Key** (TestKMSKey): Customer managed keys with per-request charges
+• **ApiGateway::RestApi** (TestAPIGateway): $0.00 per 1M requests + data transfer costs
+• **Route53::HostedZone** (TestHostedZone): Hosted zone and query pricing
+• **CloudWatch::Dashboard** (TestDashboard): Dashboard pricing with free tier
+• **CloudWatch::Alarm** (TestAlarm): Standard alarms: $0.10 per alarm per month, High-resolution: $0.30 per alarm per month
+• **StepFunctions::StateMachine** (TestStateMachine): Standard and Express workflow pricing
+• **ECR::Repository** (TestECRRepository): Storage and data transfer pricing
+• **EFS::FileSystem** (TestEFSFileSystem): Storage class based pricing
+• **CodeBuild::Project** (TestCodeBuildProject): Build minutes by compute type
+• **S3::Bucket** (CloudTrailS3Bucket): Standard storage: $0.025 per GB per month + request costs
+• **CloudTrail::Trail** (TestCloudTrail): Management and data event pricing

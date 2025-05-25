@@ -28,6 +28,10 @@ class CostEstimator:
         # Get region from parameter, environment variable, or default
         self.aws_region = aws_region or os.getenv("AWS_REGION") or "us-east-1"
         
+        # Show region being used if explicitly provided
+        if aws_region:
+            print(f"🌍 Using AWS region: {self.aws_region}")
+        
         # Initialize cost estimators
         self.infracost = InfracostEstimator(infracost_api_key)
         self.aws_pricing = AWSPricingEstimator(self.aws_region)
@@ -111,14 +115,16 @@ class CostEstimator:
 def main():
     """Main entry point for the script."""
     if len(sys.argv) < 3:
-        print("Usage: python main.py <old_template_file> <new_template_file> [output_format]")
+        print("Usage: python main.py <old_template_file> <new_template_file> [output_format] [region]")
         print("  output_format: table (default), github, full")
+        print("  region: AWS region (default: from .env or us-east-1)")
         print("  Note: If same template is passed for both old and new, shows cost breakdown for new deployment")
         sys.exit(1)
     
     old_template_file = sys.argv[1]
     new_template_file = sys.argv[2]
     output_format = sys.argv[3] if len(sys.argv) > 3 else "table"
+    aws_region = sys.argv[4] if len(sys.argv) > 4 else None
     
     try:
         # Read template files
@@ -127,8 +133,8 @@ def main():
         with open(new_template_file, 'r') as f:
             new_template = f.read()
         
-        # Initialize cost estimator
-        estimator = CostEstimator()
+        # Initialize cost estimator with optional region
+        estimator = CostEstimator(aws_region=aws_region)
         
         # Generate cost report
         report = estimator.estimate_costs(old_template, new_template, output_format)

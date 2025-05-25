@@ -42,6 +42,9 @@ python3 src/main.py old-template.yaml new-template.yaml
 
 # Generate GitHub comment format
 python3 src/main.py old.yaml new.yaml github
+
+# Specify AWS region
+python3 src/main.py template.yaml template.yaml table us-east-1
 ```
 
 ### Dynamic Pricing Revolution (v3.0) 🎯
@@ -106,6 +109,8 @@ VPC: Usage-based (wrong for free resources!)
 
 ## 🛠️ Installation
 
+**Requirements**: Python 3.8 or higher
+
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/your-username/aws-cfn-infra-cost-estimator.git
@@ -122,10 +127,20 @@ VPC: Usage-based (wrong for free resources!)
    # Required for Infracost API
    export INFRACOST_API_KEY="ico-your-api-key-here"
    
+   # Optional: AWS region (can also be passed as command line parameter)
+   export AWS_REGION="us-east-1"
+   
    # Optional: AWS credentials for AWS Pricing API fallback
    export AWS_ACCESS_KEY_ID="your-access-key"
    export AWS_SECRET_ACCESS_KEY="your-secret-key"
-   export AWS_DEFAULT_REGION="us-east-1"
+   ```
+
+   Or create a `.env` file:
+   ```bash
+   INFRACOST_API_KEY=ico-your-api-key-here
+   AWS_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=your-access-key
+   AWS_SECRET_ACCESS_KEY=your-secret-key
    ```
 
 ## 🔧 Usage
@@ -133,6 +148,9 @@ VPC: Usage-based (wrong for free resources!)
 ### Command Line Usage
 
 ```bash
+# Basic usage format
+python3 src/main.py <old_template_file> <new_template_file> [output_format] [region]
+
 # Analyze costs for a new deployment (same template for both parameters)
 python3 src/main.py template.yaml template.yaml
 
@@ -143,6 +161,11 @@ python3 src/main.py old-template.yaml new-template.yaml
 python3 src/main.py old.yaml new.yaml table    # Default: clean table format
 python3 src/main.py old.yaml new.yaml github   # GitHub comment format
 python3 src/main.py old.yaml new.yaml full     # Full detailed report
+
+# Specify AWS region (overrides .env file)
+python3 src/main.py template.yaml template.yaml table us-east-1
+python3 src/main.py old.yaml new.yaml table ca-central-1
+python3 src/main.py old.yaml new.yaml github eu-west-1
 ```
 
 ### Example Output
@@ -191,8 +214,11 @@ python3 src/main.py old.yaml new.yaml full     # Full detailed report
 ```python
 from src.main import CostEstimator
 
-# Initialize the cost estimator
+# Initialize the cost estimator (uses .env file or defaults)
 estimator = CostEstimator()
+
+# Or initialize with specific region
+estimator = CostEstimator(aws_region="ca-central-1")
 
 # Read template files
 with open('old-template.yaml', 'r') as f:
@@ -278,7 +304,7 @@ For AWS Pricing API fallback:
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="us-east-1"
+export AWS_REGION="us-east-1"
 ```
 
 ## 🚀 GitHub Actions Integration
@@ -308,9 +334,26 @@ jobs:
       - name: Run cost analysis
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          python3 src/main.py old-template.yaml new-template.yaml github
+          python3 src/main.py old-template.yaml new-template.yaml github > cost-report.md
+          
+      - name: Comment on PR
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('cost-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
 ```
+
+**Note**: The GitHub integration uses the built-in `github-script` action and doesn't require PyGithub. The tool generates markdown output that GitHub Actions posts as comments.
 
 ## 🔧 Troubleshooting
 
