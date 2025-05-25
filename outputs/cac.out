@@ -8,8 +8,8 @@
 📈 **Monthly Cost INCREASE**: $+345.14 (+286.0%)
 
 ## 🔄 Resource Changes Summary
-➕ **Added**: 0 resources
-❌ **Removed**: 0 resources
+➕ **Added**: 44 resources
+❌ **Removed**: 26 resources
 🔄 **Modified**: 0 resources
 
 ## 📋 New Template Cost Breakdown
@@ -34,7 +34,7 @@
 +----------------------------------------+-----------------------+----------------+----------------------------------------------------+
 | 📊 S3::Bucket                           | TestS3Bucket          | Usage-based    | Standard storage: $0.025 per GB per month + req... |
 +----------------------------------------+-----------------------+----------------+----------------------------------------------------+
-| 📊 Lambda::Function                     | TestLambdaFunction    | Usage-based    | $0.20 per 1M requests + $0.0000166667 per GB-se... |
+| 📊 Lambda::Function                     | TestLambdaFunction    | Usage-based    | Request pricing + $0.0000166667 per GB-second      |
 +----------------------------------------+-----------------------+----------------+----------------------------------------------------+
 | 📊 Logs::LogGroup                       | TestLogGroup          | Usage-based    | Ingestion: $0.55 per GB + Storage: $0.03 per GB... |
 +----------------------------------------+-----------------------+----------------+----------------------------------------------------+
@@ -109,7 +109,7 @@
 These resources charge based on actual usage:
 
 • **S3::Bucket** (TestS3Bucket): Standard storage: $0.025 per GB per month + request costs
-• **Lambda::Function** (TestLambdaFunction): $0.20 per 1M requests + $0.0000166667 per GB-second
+• **Lambda::Function** (TestLambdaFunction): Request pricing + $0.0000166667 per GB-second
 • **Logs::LogGroup** (TestLogGroup): Ingestion: $0.55 per GB + Storage: $0.03 per GB per month
 • **SNS::Topic** (TestSNSTopic): $0.00 per 1M requests + notification delivery costs
 • **SQS::Queue** (TestSQSQueue): $0.00 per 1M requests (first 1M free per month)

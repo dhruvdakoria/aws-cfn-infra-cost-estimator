@@ -108,11 +108,11 @@ class CostReportFormatter:
         
         for diff in resource_diffs:
             # Add emoji based on change type
-            if diff.change_type == "CREATE":
+            if diff.change_type == "ADD":
                 emoji = "➕"
-            elif diff.change_type == "DELETE":
+            elif diff.change_type == "REMOVE":
                 emoji = "❌"
-            elif diff.change_type == "UPDATE":
+            elif diff.change_type == "MODIFY":
                 emoji = "🔄"
             else:
                 emoji = "❓"
@@ -382,9 +382,9 @@ class CostReportFormatter:
         
         # Resource changes summary
         if resource_diffs:
-            added = len([d for d in resource_diffs if d.change_type == "CREATE"])
-            removed = len([d for d in resource_diffs if d.change_type == "DELETE"])
-            modified = len([d for d in resource_diffs if d.change_type == "UPDATE"])
+            added = len([d for d in resource_diffs if d.change_type == "ADD"])
+            removed = len([d for d in resource_diffs if d.change_type == "REMOVE"])
+            modified = len([d for d in resource_diffs if d.change_type == "MODIFY"])
             
             report.append("## 🔄 Resource Changes Summary")
             report.append(f"➕ **Added**: {added} resources")

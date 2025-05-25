@@ -320,6 +320,7 @@ class DynamoDBQueryBuilder(QueryBuilder):
         billing_mode = properties.get("BillingMode", "PAY_PER_REQUEST")
         
         # Use correct attribute filters for DynamoDB storage
+        # DynamoDB storage is typically not region-specific for usage type
         attribute_filters = [
             {"key": "usagetype", "value": "TimedStorage-ByteHrs"}
         ]
@@ -480,6 +481,7 @@ class Route53QueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         
         # Route 53 hosted zones have a fixed monthly cost
+        # Route 53 hosted zones are not region-specific
         attribute_filters = [
             {"key": "usagetype", "value": "HostedZone"}
         ]
@@ -705,9 +707,16 @@ class CodeBuildQueryBuilder(QueryBuilder):
     def build_project_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         compute_type = properties.get("ComputeType", "BUILD_GENERAL1_SMALL")
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for CodeBuild
+        if region_code == "USE1":
+            usagetype = "Build-Min"
+        else:
+            usagetype = f"{region_code}-Build-Min"
         
         attribute_filters = [
-            {"key": "usagetype", "value": "Build-Min"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
@@ -721,9 +730,16 @@ class KinesisQueryBuilder(QueryBuilder):
     @staticmethod
     def build_stream_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for Kinesis
+        if region_code == "USE1":
+            usagetype = "ShardHour"
+        else:
+            usagetype = f"{region_code}-ShardHour"
         
         attribute_filters = [
-            {"key": "usagetype", "value": "ShardHour"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
@@ -737,9 +753,16 @@ class CloudTrailQueryBuilder(QueryBuilder):
     @staticmethod
     def build_trail_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for CloudTrail
+        if region_code == "USE1":
+            usagetype = "DataEvents"
+        else:
+            usagetype = f"{region_code}-DataEvents"
         
         attribute_filters = [
-            {"key": "usagetype", "value": "DataEvents"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(

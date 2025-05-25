@@ -200,7 +200,20 @@ class DynamicPricingFetcher:
     
     def _parse_cloudwatch_alarm_pricing(self, products: list) -> Dict[str, Any]:
         """Parse CloudWatch Alarm-specific pricing."""
-        # CloudWatch alarms typically have fixed monthly pricing
+        # Try to get actual pricing from API response first
+        for product in products:
+            prices = product.get("prices", [])
+            for price in prices:
+                usd_price = price.get("USD")
+                if usd_price and float(usd_price) > 0:
+                    monthly_cost = float(usd_price) * 730  # Convert hourly to monthly
+                    return {
+                        "base_cost": monthly_cost,
+                        "unit_costs": {"alarm_per_month": monthly_cost},
+                        "pricing_details": f"Standard alarms: ${monthly_cost:.2f} per alarm per month, High-resolution: ${monthly_cost * 3:.2f} per alarm per month",
+                    }
+        
+        # Fallback to default pricing if no API response
         return {
             "base_cost": 0.10,  # Standard alarm cost
             "unit_costs": {"alarm_per_month": 0.10},
@@ -209,6 +222,20 @@ class DynamicPricingFetcher:
     
     def _parse_cloudwatch_dashboard_pricing(self, products: list) -> Dict[str, Any]:
         """Parse CloudWatch Dashboard-specific pricing."""
+        # Try to get actual pricing from API response first
+        for product in products:
+            prices = product.get("prices", [])
+            for price in prices:
+                usd_price = price.get("USD")
+                if usd_price and float(usd_price) > 0:
+                    monthly_cost = float(usd_price) * 730  # Convert hourly to monthly
+                    return {
+                        "base_cost": monthly_cost,
+                        "unit_costs": {"dashboard_per_month": monthly_cost},
+                        "pricing_details": f"First 3 dashboards free, then ${monthly_cost:.2f} per dashboard per month",
+                    }
+        
+        # Fallback to default pricing if no API response
         return {
             "base_cost": 3.00,  # After free tier
             "unit_costs": {"dashboard_per_month": 3.00},
@@ -222,9 +249,11 @@ class DynamicPricingFetcher:
             for price in prices:
                 usd_price = price.get("USD")
                 if usd_price:
+                    # Lambda has both request pricing and GB-second pricing
+                    # The API typically returns GB-second pricing, request pricing is separate
                     return {
                         "unit_costs": {"gb_second": float(usd_price)},
-                        "pricing_details": f"$0.20 per 1M requests + ${float(usd_price):.10f} per GB-second",
+                        "pricing_details": f"Request pricing + ${float(usd_price):.10f} per GB-second",
                         "base_cost": 0.0
                     }
         return {}
