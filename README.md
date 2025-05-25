@@ -16,6 +16,32 @@ A comprehensive Python-based solution to estimate costs of AWS CloudFormation st
 
 ## 🔧 Recent Improvements
 
+### Pricing Model Revolution (v3.0) 🎯
+
+**MAJOR UPDATE**: Completely redesigned how usage-based pricing is displayed and explained.
+
+**❌ BEFORE**: Confusing $0.00 values for paid resources
+```
+SNS Topic: $0.00/month (misleading!)
+KMS Key: $0.00/month (confusing!)
+API Gateway: $0.00/month (unclear!)
+```
+
+**✅ AFTER**: Clear, informative pricing with detailed explanations
+```
+📊 SNS Topic: Usage-based - $0.50 per 1M requests + notification costs
+💰 KMS Key: $1.00/month per key + $0.03 per 10K requests  
+📊 API Gateway: Usage-based - $3.50 per 1M requests + data transfer
+```
+
+### Key Improvements:
+
+- **🎯 Smart Pricing Models**: Distinguishes between fixed, usage-based, and free resources
+- **📊 Detailed Usage Information**: Shows actual pricing structure for usage-based resources
+- **💡 Meaningful Cost Display**: Replaces confusing $0.00 with "Usage-based" and details
+- **📈 Usage Estimation**: Provides estimated costs based on typical usage patterns
+- **🎨 Better Visual Indicators**: Clear emojis and formatting for different pricing models
+
 ### Fixed Pricing Issues (v2.0)
 
 All major AWS services now return accurate pricing through improved query builders:
@@ -314,14 +340,18 @@ jobs:
 
 ### Understanding Pricing Results
 
-**Why do some resources show $0.00?**
+**Understanding Pricing Models:**
 
-Some AWS services have usage-based pricing where the base resource is free but usage incurs costs:
+The cost estimator now clearly distinguishes between different pricing models:
 
-- **SNS/SQS**: $0.00 base cost, charged per request/message
-- **KMS**: $0.00 base cost, charged per API request  
-- **API Gateway**: $0.00 base cost, charged per API call
-- **Lambda**: Very low base cost ($0.01), mainly charged per execution
+- **Fixed Pricing** 💰: Resources with predictable hourly/monthly costs (EC2, RDS, etc.)
+- **Usage-Based Pricing** 📊: Resources that charge based on actual usage
+  - **SNS Topics**: $0.50 per 1M requests + notification costs
+  - **SQS Queues**: $0.40 per 1M requests (first 1M free monthly)
+  - **KMS Keys**: $1.00 per key per month + $0.03 per 10K requests
+  - **API Gateway**: $3.50 per 1M requests + data transfer
+  - **Lambda**: $0.20 per 1M requests + $0.0000166667 per GB-second
+- **Free Resources** 🆓: No charges (IAM roles, VPC components, etc.)
 
 **High CloudWatch Logs cost ($365/month)?**
 

@@ -20,25 +20,50 @@ class CostReportFormatter:
         # Create table data
         table_data = []
         for rc in resource_costs:
-            # Add emoji based on cost
-            if rc.hourly_cost == 0.0:
-                emoji = "🆓" if rc.usage_type == "free" else "💤"
+            # Add emoji based on pricing model and cost
+            if rc.pricing_model == "free":
+                emoji = "🆓"
+                cost_display = "$0.00"
+                pricing_info = "Free"
+            elif rc.pricing_model == "usage_based":
+                if rc.monthly_cost > 0:
+                    emoji = "💰"
+                    cost_display = f"${rc.monthly_cost:.2f}"
+                    pricing_info = "Usage-based"
+                else:
+                    emoji = "📊"
+                    cost_display = "Usage-based"
+                    pricing_info = "Pay per use"
+            elif rc.hourly_cost == 0.0:
+                emoji = "💤"
+                cost_display = "$0.00"
+                pricing_info = "Unknown"
             elif rc.hourly_cost < 0.01:
                 emoji = "💰"
+                cost_display = f"${rc.monthly_cost:.2f}"
+                pricing_info = "Low cost"
             elif rc.hourly_cost < 0.1:
                 emoji = "💵"
+                cost_display = f"${rc.monthly_cost:.2f}"
+                pricing_info = "Moderate cost"
             else:
                 emoji = "💸"
+                cost_display = f"${rc.monthly_cost:.2f}"
+                pricing_info = "High cost"
             
             # Shorten resource type for better display
             resource_type = rc.resource_type.replace("AWS::", "").replace("::", ":")
             
+            # Use pricing details if available for usage-based resources
+            if rc.pricing_model == "usage_based" and rc.pricing_details:
+                pricing_info = rc.pricing_details[:50] + "..." if len(rc.pricing_details) > 50 else rc.pricing_details
+            
             table_data.append([
                 f"{emoji} {resource_type}",
                 rc.resource_id[:15] + "..." if len(rc.resource_id) > 15 else rc.resource_id,
-                f"${rc.hourly_cost:.2f}",
-                f"${rc.monthly_cost:.2f}",
-                rc.usage_type or "N/A"
+                f"${rc.hourly_cost:.2f}" if rc.hourly_cost > 0 else "Usage-based",
+                cost_display,
+                pricing_info
             ])
         
         # Add total row
@@ -50,9 +75,21 @@ class CostReportFormatter:
             ""
         ])
         
-        headers = ["🏗️ Resource Type", "🆔 ID", "⏰ Hourly", "📅 Monthly", "🏷️ Type"]
+        headers = ["🏗️ Resource Type", "🆔 ID", "⏰ Hourly", "📅 Monthly", "💡 Pricing Info"]
         
-        return tabulate(table_data, headers=headers, tablefmt="grid", stralign="left")
+        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left")
+        
+        # Add detailed pricing information for usage-based resources
+        usage_based_resources = [rc for rc in resource_costs if rc.pricing_model == "usage_based"]
+        if usage_based_resources:
+            table_output += "\n\n📊 **Usage-Based Pricing Details:**\n"
+            table_output += "=" * 80 + "\n"
+            for rc in usage_based_resources:
+                if rc.pricing_details:
+                    resource_type = rc.resource_type.replace("AWS::", "")
+                    table_output += f"• **{resource_type}** ({rc.resource_id}): {rc.pricing_details}\n"
+        
+        return table_output
     
     @staticmethod
     def format_diff_summary(resource_diffs: List[ResourceDiff]) -> str:

@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 from .core import CostEstimator, ResourceCost, ResourceNotSupportedError, PricingDataError
 from .resource_mappings import get_paid_resources, get_free_resources, is_paid_resource, is_free_resource
 from .query_builders import get_query_builder
+from .pricing_models import get_pricing_info, get_estimated_monthly_cost
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,9 @@ class InfracostEstimator(CostEstimator):
                 currency="USD",
                 usage_type="free",
                 description="Free resource",
-                metadata={"free_resource": True}
+                metadata={"free_resource": True},
+                pricing_model="free",
+                pricing_details="This resource is free to use"
             )
         
         # Handle paid resources
@@ -90,16 +93,41 @@ class InfracostEstimator(CostEstimator):
                 if usd > 0:  # Stop if we found a non-zero price
                     break
             
-            return ResourceCost(
-                resource_type=resource_type,
-                resource_id=resource_properties.get("id", "unknown"),
-                hourly_cost=usd,
-                monthly_cost=usd * 730,  # Approximate monthly cost
-                currency="USD",
-                usage_type="on_demand",
-                description=None,
-                metadata={}
-            )
+            # Get pricing model information
+            pricing_model, base_cost, pricing_details, unit = get_pricing_info(resource_type)
+            
+            # For usage-based resources, provide meaningful cost information
+            if pricing_model == "usage_based" and usd == 0.0:
+                # Use base cost if available, otherwise show usage-based pricing
+                monthly_cost = base_cost if base_cost > 0 else 0.0
+                hourly_cost = monthly_cost / 730 if monthly_cost > 0 else 0.0
+                
+                return ResourceCost(
+                    resource_type=resource_type,
+                    resource_id=resource_properties.get("id", "unknown"),
+                    hourly_cost=hourly_cost,
+                    monthly_cost=monthly_cost,
+                    currency="USD",
+                    usage_type="usage_based",
+                    description=None,
+                    metadata={},
+                    pricing_model=pricing_model,
+                    pricing_details=pricing_details
+                )
+            else:
+                # Fixed pricing or actual cost returned from API
+                return ResourceCost(
+                    resource_type=resource_type,
+                    resource_id=resource_properties.get("id", "unknown"),
+                    hourly_cost=usd,
+                    monthly_cost=usd * 730,  # Approximate monthly cost
+                    currency="USD",
+                    usage_type="on_demand",
+                    description=None,
+                    metadata={},
+                    pricing_model=pricing_model if pricing_model != "unknown" else "fixed",
+                    pricing_details=pricing_details if pricing_details != "Pricing information not available" else None
+                )
             
         except Exception as e:
             error_msg = f"Error getting cost for resource {resource_type}: {str(e)}"

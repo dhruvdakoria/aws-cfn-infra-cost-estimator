@@ -2,7 +2,7 @@
 
 ## 🎯 **Mission Accomplished!**
 
-We have successfully created a comprehensive test suite and CloudFormation template to validate pricing for all paid AWS resources across regions, with significant improvements to the query builders.
+We have successfully created a comprehensive test suite and CloudFormation template to validate pricing for all paid AWS resources across regions, with significant improvements to the query builders and a revolutionary new pricing model display system.
 
 ## 📊 **Test Results Summary**
 
@@ -150,20 +150,20 @@ Fixed region-specific usage types for:
 - ✅ **Real-world CloudFormation templates**
 - ✅ **Detailed reporting and analysis**
 
-## 🎯 **Usage-Based Resources (Expected $0 Base Cost)**
+## 🎯 **Usage-Based Resources (Now Show Detailed Pricing)**
 
-These resources show $0 base cost but charge for usage:
+These resources now display comprehensive pricing information instead of confusing $0.00:
 
-1. **AWS::SNS::Topic** - Charges per message/request
-2. **AWS::SQS::Queue** - Charges per message/request  
-3. **AWS::KMS::Key** - Charges per API request
-4. **AWS::ApiGateway::RestApi** - Charges per API call
-5. **AWS::CloudWatch::Alarm** - Charges per alarm
-6. **AWS::CloudWatch::Dashboard** - Charges per dashboard
-7. **AWS::StepFunctions::StateMachine** - Charges per execution
-8. **AWS::EKS::Cluster** - Charges per cluster hour
-9. **AWS::Route53::HostedZone** - Charges per hosted zone
-10. **AWS::DynamoDB::Table** - Charges for storage/throughput
+1. **AWS::SNS::Topic** - $0.50 per 1M requests + notification costs
+2. **AWS::SQS::Queue** - $0.40 per 1M requests (first 1M free monthly)  
+3. **AWS::KMS::Key** - $1.00 per key per month + $0.03 per 10K requests
+4. **AWS::ApiGateway::RestApi** - $3.50 per 1M requests + data transfer
+5. **AWS::CloudWatch::Alarm** - $0.10 per alarm per month (standard)
+6. **AWS::CloudWatch::Dashboard** - First 3 free, then $3.00 per dashboard
+7. **AWS::StepFunctions::StateMachine** - $0.025 per 1K state transitions
+8. **AWS::EKS::Cluster** - $0.10 per hour ($73/month) + worker nodes
+9. **AWS::Route53::HostedZone** - $0.50 per zone + $0.40 per 1M queries
+10. **AWS::DynamoDB::Table** - $1.25 per 1M writes + $0.25 per 1M reads
 
 ## 🚀 **Next Steps**
 

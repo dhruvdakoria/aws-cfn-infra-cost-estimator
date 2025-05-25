@@ -375,14 +375,20 @@ class KMSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_key_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
         
-        # Use correct attribute filters for KMS requests
+        # KMS keys have a fixed monthly cost per key
+        if region_code == "USE1":
+            usagetype = "KMS-Keys"
+        else:
+            usagetype = f"{region_code}-KMS-Keys"
+        
         attribute_filters = [
-            {"key": "usagetype", "value": f"{region}-KMS-Requests"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
-            "awskms", "API Request", region, attribute_filters
+            "awskms", "Key Management", region, attribute_filters
         )
 
 
@@ -392,8 +398,17 @@ class EKSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
         
-        attribute_filters = []
+        # EKS clusters have a fixed hourly cost
+        if region_code == "USE1":
+            usagetype = "EKS-Cluster-Hours"
+        else:
+            usagetype = f"{region_code}-EKS-Cluster-Hours"
+        
+        attribute_filters = [
+            {"key": "usagetype", "value": usagetype}
+        ]
         
         return QueryBuilder._build_base_query(
             "AmazonEKS", "Kubernetes Cluster", region, attribute_filters
@@ -464,10 +479,13 @@ class Route53QueryBuilder(QueryBuilder):
     def build_hosted_zone_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
-        attribute_filters = []
+        # Route 53 hosted zones have a fixed monthly cost
+        attribute_filters = [
+            {"key": "usagetype", "value": "HostedZone"}
+        ]
         
         return QueryBuilder._build_base_query(
-            "AmazonRoute53", "Hosted Zone", region, attribute_filters, purchase_option=""
+            "AmazonRoute53", "Hosted Zone", region, attribute_filters
         )
     
     @staticmethod

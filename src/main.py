@@ -92,6 +92,14 @@ class CostEstimator:
                 
                 costs.append(cost)
                 
+                # Log pricing information for better visibility
+                if cost.pricing_model == "usage_based":
+                    logger.info(f"📊 {resource.logical_id} ({resource.type}): Usage-based pricing - {cost.pricing_details}")
+                elif cost.monthly_cost > 0:
+                    logger.info(f"💰 {resource.logical_id} ({resource.type}): ${cost.monthly_cost:.2f}/month")
+                else:
+                    logger.info(f"🆓 {resource.logical_id} ({resource.type}): Free resource")
+                
             except Exception as e:
                 logger.error(f"Error getting cost for resource {resource.logical_id}: {str(e)}")
                 continue
