@@ -1,0 +1,95 @@
+
+i see on running below query - https://studio.apollographql.com/sandbox/explorer
+URL: https://pricing.api.infracost.io/graphql
+HEADER: X-Api-Key: <APIKEYINFRACOST>
+
+query {
+  products(
+    filter: {
+      vendorName: "aws",
+      service: "AmazonApiGateway",
+      productFamily: "API Calls",
+      region: "us-east-1",
+      attributeFilters: [ 
+        { key: "usagetype", value: "USE1-ApiGatewayRequest" }
+      ]
+    },
+  )
+   {
+    attributes { key, value }
+    prices(
+      filter: {purchaseOption: "on_demand"}
+    ){ USD }
+  }
+}
+
+the reposnse is -
+
+{
+  "data": {
+    "products": [
+      {
+        "attributes": [
+          {
+            "key": "location",
+            "value": "US East (N. Virginia)"
+          },
+          {
+            "key": "operation",
+            "value": "ApiGatewayRequest"
+          },
+          {
+            "key": "usagetype",
+            "value": "USE1-ApiGatewayRequest"
+          },
+          {
+            "key": "regionCode",
+            "value": "us-east-1"
+          },
+          {
+            "key": "description",
+            "value": "API calls received"
+          },
+          {
+            "key": "servicecode",
+            "value": "AmazonApiGateway"
+          },
+          {
+            "key": "servicename",
+            "value": "Amazon API Gateway"
+          },
+          {
+            "key": "locationType",
+            "value": "AWS Region"
+          }
+        ],
+        "prices": [
+          {
+            "USD": "0.0000035"
+          },
+          {
+            "USD": "0.0000028"
+          },
+          {
+            "USD": "0.00000238"
+          },
+          {
+            "USD": "0.00000151"
+          },
+          {
+            "USD": "0.0000035"
+          },
+          {
+            "USD": "0.0000028"
+          },
+          {
+            "USD": "0.00000238"
+          },
+          {
+            "USD": "0.00000151"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -63,7 +63,7 @@ class CostReportFormatter:
             
             # Use pricing details if available for usage-based resources
             if rc.pricing_model == "usage_based" and rc.pricing_details:
-                pricing_info = rc.pricing_details[:50] + "..." if len(rc.pricing_details) > 50 else rc.pricing_details
+                pricing_info = rc.pricing_details[:60] + "..." if len(rc.pricing_details) > 60 else rc.pricing_details
             
             table_data.append([
                 f"{emoji} {resource_type}",
@@ -84,17 +84,17 @@ class CostReportFormatter:
         
         headers = ["🏗️ Resource Type", "🆔 ID", "⏰ Hourly", "📅 Monthly", "💡 Pricing Info"]
         
-        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left")
+        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, None, 60])
         
-        # Add detailed pricing information for usage-based resources
-        usage_based_resources = [rc for rc in resource_costs if rc.pricing_model == "usage_based"]
-        if usage_based_resources:
-            table_output += "\n\n📊 **Usage-Based Pricing Details:**\n"
-            table_output += "=" * 80 + "\n"
-            for rc in usage_based_resources:
-                if rc.pricing_details:
-                    resource_type = rc.resource_type.replace("AWS::", "")
-                    table_output += f"• **{resource_type}** ({rc.resource_id}): {rc.pricing_details}\n"
+        # Add detailed pricing information for all resources with pricing details
+        resources_with_details = [rc for rc in resource_costs if rc.pricing_details and rc.pricing_details != "No details available"]
+        if resources_with_details:
+            table_output += "\n\n📊 **Detailed Pricing Information:**\n"
+            table_output += "=" * 100 + "\n"
+            for rc in resources_with_details:
+                resource_type = rc.resource_type.replace("AWS::", "")
+                table_output += f"• **{resource_type}** ({rc.resource_id}):\n"
+                table_output += f"  {rc.pricing_details}\n\n"
         
         return table_output
     
@@ -308,8 +308,14 @@ class CostReportFormatter:
             
             # Format pricing details
             pricing_info = rc.pricing_details if rc.pricing_details else "No details available"
-            if len(pricing_info) > 60:
-                pricing_info = pricing_info[:57] + "..."
+            
+            # Special handling for tiered pricing
+            if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_details"):
+                tier_count = rc.metadata.get("pricing_tiers", 0)
+                pricing_info = f"Tiered pricing with {tier_count} tiers - actual cost depends on usage volume"
+            
+            if len(pricing_info) > 80:
+                pricing_info = pricing_info[:77] + "..."
             
             table_data.append([
                 f"{emoji} {resource_type}",
@@ -319,19 +325,35 @@ class CostReportFormatter:
             ])
         
         headers = ["Resource Type", "Resource ID", "Monthly Cost", "Pricing Details"]
-        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left")
+        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 80])
         report.append(table_output)
         
-        # Usage-based details section
-        usage_based_resources = [rc for rc in resource_costs if rc.pricing_model == "usage_based"]
-        if usage_based_resources:
+        # Detailed pricing information section
+        resources_with_details = [rc for rc in resource_costs if rc.pricing_details and rc.pricing_details != "No details available"]
+        if resources_with_details:
             report.append("")
-            report.append("## 📊 Usage-Based Pricing Details")
-            report.append("These resources charge based on actual usage:")
+            report.append("## 📊 Detailed Pricing Information")
+            report.append("Complete pricing details for all resources:")
             report.append("")
-            for rc in usage_based_resources:
+            for rc in resources_with_details:
                 resource_type = rc.resource_type.replace("AWS::", "")
-                report.append(f"• **{resource_type}** ({rc.resource_id}): {rc.pricing_details}")
+                report.append(f"### {resource_type} ({rc.resource_id})")
+                
+                # Show tier details for tiered pricing resources
+                if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_details"):
+                    tier_details = rc.metadata.get("tier_details", [])
+                    report.append(f"{rc.pricing_details}")
+                    if tier_details:
+                        report.append("")
+                        report.append("**Pricing Tiers:**")
+                        for tier in tier_details[:5]:  # Show first 5 tiers
+                            report.append(f"- {tier}")
+                        if len(tier_details) > 5:
+                            report.append(f"- ... and {len(tier_details) - 5} more tiers")
+                else:
+                    report.append(f"{rc.pricing_details}")
+                
+                report.append("")
         
         # Add footer notes
         report.append("")
@@ -421,8 +443,8 @@ class CostReportFormatter:
                     emoji = "❓"
                 
                 pricing_info = rc.pricing_details if rc.pricing_details else "No details available"
-                if len(pricing_info) > 50:
-                    pricing_info = pricing_info[:47] + "..."
+                if len(pricing_info) > 60:
+                    pricing_info = pricing_info[:57] + "..."
                 
                 table_data.append([
                     f"{emoji} {resource_type}",
@@ -432,20 +454,22 @@ class CostReportFormatter:
                 ])
             
             headers = ["Resource Type", "Resource ID", "Monthly Cost", "Pricing Details"]
-            table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left")
+            table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 60])
             report.append(table_output)
         else:
             report.append("No resources found in new template.")
         
-        # Usage-based details
-        usage_based_resources = [rc for rc in new_costs if rc.pricing_model == "usage_based"]
-        if usage_based_resources:
+        # Detailed pricing information
+        resources_with_details = [rc for rc in new_costs if rc.pricing_details and rc.pricing_details != "No details available"]
+        if resources_with_details:
             report.append("")
-            report.append("## 📊 Usage-Based Pricing Details")
-            report.append("These resources charge based on actual usage:")
+            report.append("## 📊 Detailed Pricing Information")
+            report.append("Complete pricing details for all resources:")
             report.append("")
-            for rc in usage_based_resources:
+            for rc in resources_with_details:
                 resource_type = rc.resource_type.replace("AWS::", "")
-                report.append(f"• **{resource_type}** ({rc.resource_id}): {rc.pricing_details}")
+                report.append(f"### {resource_type} ({rc.resource_id})")
+                report.append(f"{rc.pricing_details}")
+                report.append("")
         
         return "\n".join(report) 

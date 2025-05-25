@@ -664,8 +664,7 @@ FREE_RESOURCES: Set[str] = {
     "AWS::DocDB::DBClusterParameterGroup",
     "AWS::DocDB::DBSubnetGroup",
     
-    # DynamoDB
-    "AWS::DynamoDB::Table",  # Table items are free, storage and throughput are paid
+    # DynamoDB - removed AWS::DynamoDB::Table as it has costs for storage and throughput
     
     # EBS
     "AWS::EC2::EBSEncryptionByDefault",
@@ -927,4 +926,192 @@ def is_free_resource(resource_type: str) -> bool:
 
 def get_resource_mapping(resource_type: str) -> Dict[str, str]:
     """Get the service mapping for a specific resource type."""
-    return PAID_RESOURCE_MAPPINGS.get(resource_type, {}) 
+    return PAID_RESOURCE_MAPPINGS.get(resource_type, {})
+
+
+# Pricing model definitions consolidated from pricing_models.py
+PRICING_MODELS = {
+    # Usage-based resources with detailed pricing information
+    "AWS::SNS::Topic": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Pay per request and notification delivery",
+        "unit": "per request/notification"
+    },
+    
+    "AWS::SQS::Queue": {
+        "model": "usage_based", 
+        "base_cost": 0.0,
+        "details": "Pay per request with free tier",
+        "unit": "per request"
+    },
+    
+    "AWS::KMS::Key": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Customer managed keys with per-request charges",
+        "unit": "per key + per request"
+    },
+    
+    "AWS::ApiGateway::RestApi": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Pay per request plus data transfer",
+        "unit": "per request"
+    },
+    
+    "AWS::ApiGatewayV2::Api": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "HTTP APIs and WebSocket APIs pricing",
+        "unit": "per request/message"
+    },
+    
+    "AWS::CloudWatch::Alarm": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Standard and high-resolution alarm pricing",
+        "unit": "per alarm per month"
+    },
+    
+    "AWS::CloudWatch::Dashboard": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Dashboard pricing with free tier",
+        "unit": "per dashboard per month"
+    },
+    
+    "AWS::StepFunctions::StateMachine": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Standard and Express workflow pricing",
+        "unit": "per state transition/request"
+    },
+    
+    "AWS::Route53::HostedZone": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Hosted zone and query pricing",
+        "unit": "per zone + per query"
+    },
+    
+    "AWS::Route53::HealthCheck": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Health check monitoring",
+        "unit": "per health check per month"
+    },
+    
+    "AWS::DynamoDB::Table": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "On-demand or provisioned capacity pricing",
+        "unit": "per request + storage"
+    },
+    
+    "AWS::EKS::Cluster": {
+        "model": "fixed",
+        "base_cost": 73.0,  # $0.10 per hour = ~$73/month
+        "details": "EKS cluster: $0.10 per hour ($73/month) + worker node costs",
+        "unit": "per cluster per hour"
+    },
+    
+    "AWS::ECR::Repository": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Storage and data transfer pricing",
+        "unit": "per GB storage + data transfer"
+    },
+    
+    "AWS::EFS::FileSystem": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "$0.3300 per hour",
+        "unit": "per GB per month"
+    },
+    
+    "AWS::CodeBuild::Project": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Build minutes by compute type",
+        "unit": "per build minute"
+    },
+    
+    "AWS::CloudTrail::Trail": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Management and data event pricing",
+        "unit": "per 100K events"
+    },
+    
+    # Fixed-cost resources with clear pricing
+    "AWS::EC2::Instance": {
+        "model": "fixed",
+        "base_cost": None,  # Varies by instance type
+        "details": "On-demand pricing varies by instance type and region",
+        "unit": "per instance per hour"
+    },
+    
+    "AWS::RDS::DBInstance": {
+        "model": "fixed", 
+        "base_cost": None,
+        "details": "On-demand pricing varies by instance class, engine, and region",
+        "unit": "per instance per hour"
+    },
+    
+    "AWS::S3::Bucket": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Storage and request pricing by storage class",
+        "unit": "per GB storage + per request"
+    },
+    
+    "AWS::Lambda::Function": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Request and compute duration pricing",
+        "unit": "per request + per GB-second"
+    },
+    
+    "AWS::Logs::LogGroup": {
+        "model": "usage_based",
+        "base_cost": 0.0,
+        "details": "Ingestion: $0.55 per GB + Storage: $0.03 per GB per month",
+        "unit": "per GB ingested + per GB stored"
+    },
+    
+    "AWS::SecretsManager::Secret": {
+        "model": "fixed",
+        "base_cost": 0.40,  # $0.40 per secret per month
+        "details": "Secret storage and API call pricing",
+        "unit": "per secret per month + per API call"
+    }
+}
+
+
+def get_pricing_info(resource_type: str, region: str = "us-east-1") -> tuple[str, float, str, str]:
+    """
+    Get pricing information for a resource type.
+    
+    Returns:
+        Tuple of (pricing_model, base_cost, details, unit)
+    """
+    static_info = PRICING_MODELS.get(resource_type, {
+        "model": "unknown",
+        "base_cost": 0.0,
+        "details": "Pricing information not available",
+        "unit": "unknown"
+    })
+    
+    return (
+        static_info["model"],
+        static_info["base_cost"] or 0.0,
+        static_info["details"],
+        static_info["unit"]
+    )
+
+
+def is_usage_based_resource(resource_type: str) -> bool:
+    """Check if a resource has usage-based pricing."""
+    model, _, _, _ = get_pricing_info(resource_type)
+    return model == "usage_based" 

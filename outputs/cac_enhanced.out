@@ -16,19 +16,19 @@
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | Resource Type                          | Resource ID           | Monthly Cost   | Pricing Details                                              |
 +========================================+=======================+================+==============================================================+
-| 💰 EC2::Instance                        | TestEC2Instance       | $8.47/month    | On-demand pricing varies by instance type and region         |
+| 💰 EC2::Instance                        | TestEC2Instance       | $8.47/month    | $0.011600 per Hrs - $0.0116 per On Demand Linux t3.micro ... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 💰 EC2::Volume                          | TestEBSVolume         | $64.24/month   | No details available                                         |
+| 💰 EC2::Volume                          | TestEBSVolume         | $64.24/month   | $0.088000 per GB-Mo - $0.088 per GB-month of General Purp... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 💰 ElasticLoadBalancingV2::LoadBalancer | TestALB               | $20.07/month   | No details available                                         |
+| 💰 ElasticLoadBalancingV2::LoadBalancer | TestALB               | $20.07/month   | $0.027500 per Hrs - $0.0275 per LoadBalancer-hour (or par... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 💰 RDS::DBInstance                      | TestRDSInstance       | $27.01/month   | On-demand pricing varies by instance class, engine, and r... |
+| 💰 RDS::DBInstance                      | TestRDSInstance       | $27.01/month   | $0.037000 per Hrs - USD 0.037 per db.t3.micro Multi-AZ in... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 💰 SecretsManager::Secret               | TestSecret            | $0.40/month    | Secret storage and API call pricing                          |
+| 💰 SecretsManager::Secret               | TestSecret            | $0.40/month    | $0.400000 per Secrets - $0.40 per Secret                     |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 💰 EC2::NatGateway                      | TestNATGateway        | $36.50/month   | No details available                                         |
+| 💰 EC2::NatGateway                      | TestNATGateway        | $36.50/month   | $0.050000 per Hrs - $0.05 per NAT Gateway Hour               |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 💰 ElastiCache::CacheCluster            | TestElastiCacheClu... | $13.87/month   | No details available                                         |
+| 💰 ElastiCache::CacheCluster            | TestElastiCacheClu... | $13.87/month   | $0.019000 per Hrs - $0.019 per T3 Micro Cache node-hour (... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 📊 EC2::EIP                             | TestEIP               | Usage-based    | Tiered pricing with 2 tiers - actual cost depends on usag... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
@@ -36,33 +36,33 @@
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 📊 Lambda::Function                     | TestLambdaFunction    | Usage-based    | Tiered pricing with 3 tiers - actual cost depends on usag... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 Logs::LogGroup                       | TestLogGroup          | Usage-based    | Ingestion: $0.55 per GB + Storage: $0.03 per GB per month    |
+| 📊 Logs::LogGroup                       | TestLogGroup          | Usage-based    | $0.550000 per GB - $0.55 per GB custom log data ingested ... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 📊 SNS::Topic                           | TestSNSTopic          | Usage-based    | Tiered pricing with 2 tiers - actual cost depends on usag... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 📊 SQS::Queue                           | TestSQSQueue          | Usage-based    | Tiered pricing with 2 tiers - actual cost depends on usag... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 KMS::Key                             | TestKMSKey            | Usage-based    | Customer managed keys with per-request charges               |
+| 📊 KMS::Key                             | TestKMSKey            | Usage-based    | Usage-based pricing per key + per request                    |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 📊 ApiGateway::RestApi                  | TestAPIGateway        | Usage-based    | Tiered pricing with 8 tiers - actual cost depends on usag... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 Route53::HostedZone                  | TestHostedZone        | Usage-based    | Hosted zone and query pricing                                |
+| 📊 Route53::HostedZone                  | TestHostedZone        | Usage-based    | Usage-based pricing per zone + per query                     |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 CloudWatch::Dashboard                | TestDashboard         | Usage-based    | Dashboard pricing with free tier                             |
+| 📊 CloudWatch::Dashboard                | TestDashboard         | Usage-based    | Usage-based pricing per dashboard per month                  |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 CloudWatch::Alarm                    | TestAlarm             | Usage-based    | Standard and high-resolution alarm pricing                   |
+| 📊 CloudWatch::Alarm                    | TestAlarm             | Usage-based    | $0.500000 per Alarms - $0.50 per composite alarm month - ... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 StepFunctions::StateMachine          | TestStateMachine      | Usage-based    | Standard and Express workflow pricing                        |
+| 📊 StepFunctions::StateMachine          | TestStateMachine      | Usage-based    | Usage-based pricing per state transition/request             |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 ECR::Repository                      | TestECRRepository     | Usage-based    | Storage and data transfer pricing                            |
+| 📊 ECR::Repository                      | TestECRRepository     | Usage-based    | Usage-based pricing per GB storage + data transfer           |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 EFS::FileSystem                      | TestEFSFileSystem     | Usage-based    | $0.3300 per hour                                             |
+| 📊 EFS::FileSystem                      | TestEFSFileSystem     | Usage-based    | $0.330000 per GB-Mo - USD $0.33 per GB-Mo for Standard st... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 CodeBuild::Project                   | TestCodeBuildProje... | Usage-based    | Build minutes by compute type                                |
+| 📊 CodeBuild::Project                   | TestCodeBuildProje... | Usage-based    | Usage-based pricing per build minute                         |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 📊 S3::Bucket                           | CloudTrailS3Bucket    | Usage-based    | Tiered pricing with 3 tiers - actual cost depends on usag... |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
-| 📊 CloudTrail::Trail                    | TestCloudTrail        | Usage-based    | Management and data event pricing                            |
+| 📊 CloudTrail::Trail                    | TestCloudTrail        | Usage-based    | Usage-based pricing per 100K events                          |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
 | 🆓 EC2::VPC                             | TestVPC               | Free           | This resource is free to use                                 |
 +----------------------------------------+-----------------------+----------------+--------------------------------------------------------------+
@@ -139,11 +139,17 @@ This resource is free to use
 This resource is free to use
 
 ### EC2::Instance (TestEC2Instance)
-On-demand pricing varies by instance type and region
+$0.011600 per Hrs - $0.0116 per On Demand Linux t3.micro Instance Hour
+
+### EC2::Volume (TestEBSVolume)
+$0.088000 per GB-Mo - $0.088 per GB-month of General Purpose (gp3) provisioned storage - Canada (Central)
 
 ### EC2::EIP (TestEIP)
 Tiered pricing with 2 tiers - actual cost depends on usage volume
 Tier 1: 0-1 Hrs → $0 per Hrs; Tier 2: 1-Inf Hrs → $0.005 per Hrs
+
+### ElasticLoadBalancingV2::LoadBalancer (TestALB)
+$0.027500 per Hrs - $0.0275 per LoadBalancer-hour (or partial hour)
 
 ### S3::Bucket (TestS3Bucket)
 Tiered pricing with 3 tiers - actual cost depends on usage volume
@@ -163,10 +169,10 @@ This resource is free to use
 This resource is free to use
 
 ### RDS::DBInstance (TestRDSInstance)
-On-demand pricing varies by instance class, engine, and region
+$0.037000 per Hrs - USD 0.037 per db.t3.micro Multi-AZ instance hour (or partial hour) running MySQL
 
 ### Logs::LogGroup (TestLogGroup)
-Ingestion: $0.55 per GB + Storage: $0.03 per GB per month
+$0.550000 per GB - $0.55 per GB custom log data ingested in Standard log class - Canada (Central)
 
 ### SNS::Topic (TestSNSTopic)
 Tiered pricing with 2 tiers - actual cost depends on usage volume
@@ -177,20 +183,26 @@ Tiered pricing with 2 tiers - actual cost depends on usage volume
 Tier 1: 0-1000000 Requests → $0 per Requests; Tier 2: 1000000-Inf Requests → $5e-7 per Requests
 
 ### KMS::Key (TestKMSKey)
-Customer managed keys with per-request charges
+Usage-based pricing per key + per request
 
 ### ApiGateway::RestApi (TestAPIGateway)
 Tiered pricing with 8 tiers - actual cost depends on usage volume
 Tier 1: 0-333000000 CAN1-AmazonApiGatewayRequest → $0.0000035 per CAN1-AmazonApiGatewayRequest; Tier 2: 333000000-1000000000 CAN1-AmazonApiGatewayRequest → $0.00000308 per CAN1-AmazonApiGatewayRequest; Tier 3: 1000000000-20000000000 CAN1-AmazonApiGatewayRequest → $0.00000262 per CAN1-AmazonApiGatewayRequest + 5 more tiers
 
 ### SecretsManager::Secret (TestSecret)
-Secret storage and API call pricing
+$0.400000 per Secrets - $0.40 per Secret
 
 ### DynamoDB::Table (TestDynamoDBTable)
 This resource is free to use
 
+### EC2::NatGateway (TestNATGateway)
+$0.050000 per Hrs - $0.05 per NAT Gateway Hour
+
 ### ElastiCache::SubnetGroup (TestElastiCacheSubnetGroup)
 This resource is free to use
+
+### ElastiCache::CacheCluster (TestElastiCacheCluster)
+$0.019000 per Hrs - $0.019 per T3 Micro Cache node-hour (or partial hour) running Redis
 
 ### IAM::Role (EKSServiceRole)
 This resource is free to use
@@ -199,31 +211,31 @@ This resource is free to use
 EKS cluster: $0.10 per hour ($73/month) + worker node costs
 
 ### Route53::HostedZone (TestHostedZone)
-Hosted zone and query pricing
+Usage-based pricing per zone + per query
 
 ### CloudWatch::Dashboard (TestDashboard)
-Dashboard pricing with free tier
+Usage-based pricing per dashboard per month
 
 ### CloudWatch::Alarm (TestAlarm)
-Standard and high-resolution alarm pricing
+$0.500000 per Alarms - $0.50 per composite alarm month - Canada (Central)
 
 ### IAM::Role (StepFunctionsRole)
 This resource is free to use
 
 ### StepFunctions::StateMachine (TestStateMachine)
-Standard and Express workflow pricing
+Usage-based pricing per state transition/request
 
 ### ECR::Repository (TestECRRepository)
-Storage and data transfer pricing
+Usage-based pricing per GB storage + data transfer
 
 ### EFS::FileSystem (TestEFSFileSystem)
-$0.3300 per hour
+$0.330000 per GB-Mo - USD $0.33 per GB-Mo for Standard storage (CAN1)
 
 ### IAM::Role (CodeBuildServiceRole)
 This resource is free to use
 
 ### CodeBuild::Project (TestCodeBuildProject)
-Build minutes by compute type
+Usage-based pricing per build minute
 
 ### S3::Bucket (CloudTrailS3Bucket)
 Tiered pricing with 3 tiers - actual cost depends on usage volume
@@ -233,5 +245,5 @@ Tier 1: 0-51200 GB-Mo → $0.025 per GB-Mo; Tier 2: 51200-512000 GB-Mo → $0.02
 This resource is free to use
 
 ### CloudTrail::Trail (TestCloudTrail)
-Management and data event pricing
+Usage-based pricing per 100K events
 

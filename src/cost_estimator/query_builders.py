@@ -44,13 +44,38 @@ def get_region_code(region: str) -> str:
     return region_mapping.get(region, "USE1")  # Default to US East 1
 
 
+def calculate_tiered_cost(prices, monthly_usage):
+    """Calculate cost using tiered pricing structure."""
+    total_cost = 0
+    remaining_usage = monthly_usage
+    
+    # Sort prices by startUsageAmount
+    sorted_prices = sorted(prices, key=lambda p: float(p.get('startUsageAmount', 0)))
+    
+    for price in sorted_prices:
+        start_amount = float(price.get('startUsageAmount', 0))
+        end_amount = float(price.get('endUsageAmount', float('inf')))
+        price_per_unit = float(price['USD'])
+        
+        if remaining_usage <= 0:
+            break
+            
+        # Calculate usage in this tier
+        tier_usage = min(remaining_usage, end_amount - start_amount)
+        if tier_usage > 0:
+            total_cost += tier_usage * price_per_unit
+            remaining_usage -= tier_usage
+    
+    return total_cost
+
+
 class QueryBuilder:
     """Base class for building GraphQL queries for Infracost API."""
     
     @staticmethod
     def _build_base_query(service: str, product_family: str, region: str, 
                          attribute_filters: list, purchase_option: str = "on_demand") -> str:
-        """Build a base GraphQL query with common structure."""
+        """Build a base GraphQL query with common structure including pricing tier information."""
         filters_str = ""
         for i, filter_item in enumerate(attribute_filters):
             comma = "," if i < len(attribute_filters) - 1 else ""
@@ -69,7 +94,13 @@ class QueryBuilder:
               ]
             }}
           ) {{
-            prices(filter: {{purchaseOption: "{purchase_option}"}}) {{ USD }}
+            prices(filter: {{purchaseOption: "{purchase_option}"}}) {{ 
+              USD 
+              unit
+              description
+              startUsageAmount
+              endUsageAmount
+            }}
           }}
         }}
         '''
@@ -81,10 +112,40 @@ class EC2QueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_instance_query(properties: Dict[str, Any]) -> str:
+        # Extract actual properties from CloudFormation template
         instance_type = properties.get("InstanceType", "t2.micro")
         region = properties.get("Region", "us-east-1")
-        operating_system = properties.get("OperatingSystem", "Linux")
-        tenancy = properties.get("Tenancy", "Shared")
+        
+        # Extract image ID to determine OS
+        image_id = properties.get("ImageId", "")
+        # Extract security groups, key name, etc.
+        security_groups = properties.get("SecurityGroups", [])
+        security_group_ids = properties.get("SecurityGroupIds", [])
+        key_name = properties.get("KeyName", "")
+        subnet_id = properties.get("SubnetId", "")
+        
+        # Determine operating system from image ID or user data
+        user_data = properties.get("UserData", "")
+        operating_system = "Linux"  # Default
+        
+        # Try to infer OS from common patterns
+        if image_id:
+            if "windows" in image_id.lower():
+                operating_system = "Windows"
+            elif "rhel" in image_id.lower():
+                operating_system = "RHEL"
+            elif "suse" in image_id.lower():
+                operating_system = "SUSE"
+        
+        # Extract tenancy from placement
+        placement = properties.get("Placement", {})
+        tenancy = placement.get("Tenancy", "default")
+        if tenancy == "default":
+            tenancy = "Shared"
+        elif tenancy == "dedicated":
+            tenancy = "Dedicated"
+        elif tenancy == "host":
+            tenancy = "Host"
         
         attribute_filters = [
             {"key": "instanceType", "value": instance_type},
@@ -101,7 +162,13 @@ class EC2QueryBuilder(QueryBuilder):
     @staticmethod
     def build_ebs_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual EBS properties
         volume_type = properties.get("VolumeType", "gp3")
+        size = properties.get("Size", 8)  # Size in GB
+        iops = properties.get("Iops", None)
+        throughput = properties.get("Throughput", None)
+        encrypted = properties.get("Encrypted", False)
+        
         region_code = get_region_code(region)
         
         # Use region-specific usage type for EBS volumes
@@ -155,14 +222,37 @@ class RDSQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_instance_query(properties: Dict[str, Any]) -> str:
+        # Extract actual RDS properties
         instance_class = properties.get("DBInstanceClass", "db.t3.micro")
         region = properties.get("Region", "us-east-1")
         engine = properties.get("Engine", "mysql")
+        engine_version = properties.get("EngineVersion", "")
+        license_model = properties.get("LicenseModel", "")
+        multi_az = properties.get("MultiAZ", False)
+        storage_type = properties.get("StorageType", "gp2")
+        allocated_storage = properties.get("AllocatedStorage", 20)
         
-        # Use correct attribute filters based on exploration
+        # Map engine to correct case for API
+        engine_mapping = {
+            "mysql": "MySQL",
+            "postgres": "PostgreSQL", 
+            "postgresql": "PostgreSQL",
+            "oracle-ee": "Oracle",
+            "oracle-se2": "Oracle",
+            "oracle-se1": "Oracle",
+            "oracle-se": "Oracle",
+            "sqlserver-ee": "SQL Server",
+            "sqlserver-se": "SQL Server",
+            "sqlserver-ex": "SQL Server",
+            "sqlserver-web": "SQL Server",
+            "mariadb": "MariaDB"
+        }
+        
+        database_engine = engine_mapping.get(engine.lower(), "MySQL")
+        
         attribute_filters = [
             {"key": "instanceType", "value": instance_class},
-            {"key": "databaseEngine", "value": "MySQL"}  # Use exact case from API
+            {"key": "databaseEngine", "value": database_engine}
         ]
         
         return QueryBuilder._build_base_query(
@@ -172,10 +262,25 @@ class RDSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual cluster properties
         engine = properties.get("Engine", "aurora-mysql")
+        engine_version = properties.get("EngineVersion", "")
+        database_name = properties.get("DatabaseName", "")
+        master_username = properties.get("MasterUsername", "")
+        backup_retention_period = properties.get("BackupRetentionPeriod", 1)
+        
+        # Map engine for clusters
+        if "aurora-mysql" in engine:
+            database_engine = "Aurora MySQL"
+        elif "aurora-postgresql" in engine:
+            database_engine = "Aurora PostgreSQL"
+        elif "aurora" in engine:
+            database_engine = "Aurora MySQL"  # Default
+        else:
+            database_engine = engine
         
         attribute_filters = [
-            {"key": "databaseEngine", "value": engine}
+            {"key": "databaseEngine", "value": database_engine}
         ]
         
         return QueryBuilder._build_base_query(
@@ -189,7 +294,14 @@ class S3QueryBuilder(QueryBuilder):
     @staticmethod
     def build_bucket_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        storage_class = properties.get("StorageClass", "Standard")
+        # Extract actual S3 bucket properties
+        bucket_name = properties.get("BucketName", "")
+        access_control = properties.get("AccessControl", "")
+        versioning_configuration = properties.get("VersioningConfiguration", {})
+        lifecycle_configuration = properties.get("LifecycleConfiguration", {})
+        notification_configuration = properties.get("NotificationConfiguration", {})
+        logging_configuration = properties.get("LoggingConfiguration", {})
+        
         region_code = get_region_code(region)
         
         # Use region-specific usage type for S3 storage
@@ -214,6 +326,15 @@ class LambdaQueryBuilder(QueryBuilder):
     @staticmethod
     def build_function_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual Lambda function properties
+        function_name = properties.get("FunctionName", "")
+        runtime = properties.get("Runtime", "python3.9")
+        memory_size = properties.get("MemorySize", 128)
+        timeout = properties.get("Timeout", 3)
+        environment = properties.get("Environment", {})
+        vpc_config = properties.get("VpcConfig", {})
+        dead_letter_config = properties.get("DeadLetterConfig", {})
+        
         region_code = get_region_code(region)
         
         # Use region-specific usage type for Lambda
@@ -237,7 +358,15 @@ class ELBQueryBuilder(QueryBuilder):
     @staticmethod
     def build_alb_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual ALB properties
         load_balancer_type = properties.get("Type", "application")
+        name = properties.get("Name", "")
+        scheme = properties.get("Scheme", "internet-facing")
+        ip_address_type = properties.get("IpAddressType", "ipv4")
+        subnets = properties.get("Subnets", [])
+        security_groups = properties.get("SecurityGroups", [])
+        load_balancer_attributes = properties.get("LoadBalancerAttributes", [])
+        
         region_code = get_region_code(region)
         
         # Use region-specific usage type for Load Balancer
@@ -258,6 +387,13 @@ class ELBQueryBuilder(QueryBuilder):
     @staticmethod
     def build_classic_elb_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual Classic ELB properties
+        load_balancer_name = properties.get("LoadBalancerName", "")
+        listeners = properties.get("Listeners", [])
+        availability_zones = properties.get("AvailabilityZones", [])
+        subnets = properties.get("Subnets", [])
+        security_groups = properties.get("SecurityGroups", [])
+        health_check = properties.get("HealthCheck", {})
         
         attribute_filters = [
             {"key": "loadBalancerType", "value": "classic"}
@@ -307,7 +443,7 @@ class CloudWatchQueryBuilder(QueryBuilder):
         attribute_filters = []
         
         return QueryBuilder._build_base_query(
-            "AmazonCloudWatch", "Alarm", region, attribute_filters, purchase_option=""
+            "AmazonCloudWatch", "Alarm", region, attribute_filters, purchase_option="on_demand"
         )
 
 
@@ -317,12 +453,25 @@ class DynamoDBQueryBuilder(QueryBuilder):
     @staticmethod
     def build_table_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual DynamoDB table properties
+        table_name = properties.get("TableName", "")
         billing_mode = properties.get("BillingMode", "PAY_PER_REQUEST")
+        attribute_definitions = properties.get("AttributeDefinitions", [])
+        key_schema = properties.get("KeySchema", [])
+        provisioned_throughput = properties.get("ProvisionedThroughput", {})
+        global_secondary_indexes = properties.get("GlobalSecondaryIndexes", [])
+        local_secondary_indexes = properties.get("LocalSecondaryIndexes", [])
+        stream_specification = properties.get("StreamSpecification", {})
+        sse_specification = properties.get("SSESpecification", {})
         
-        # Use correct attribute filters for DynamoDB storage
-        # DynamoDB storage is typically not region-specific for usage type
+        region_code = get_region_code(region)
+        
+        # Use storage pricing which works reliably
+        # This gives us the storage cost component of DynamoDB
+        usagetype = "TimedStorage-ByteHrs"
+        
         attribute_filters = [
-            {"key": "usagetype", "value": "TimedStorage-ByteHrs"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
@@ -336,10 +485,20 @@ class APIGatewayQueryBuilder(QueryBuilder):
     @staticmethod
     def build_rest_api_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual properties from CloudFormation template
+        name = properties.get("Name", "")
+        description = properties.get("Description", "")
+        endpoint_configuration = properties.get("EndpointConfiguration", {})
+        endpoint_types = endpoint_configuration.get("Types", ["EDGE"])
+        
         region_code = get_region_code(region)
         
         # Use region-specific usage type for API Gateway REST requests
-        usagetype = f"{region_code}-ApiGatewayRequest"
+        # For us-east-1, the usage type is USE1-ApiGatewayRequest (not just ApiGatewayRequest)
+        if region_code == "USE1":
+            usagetype = "USE1-ApiGatewayRequest"
+        else:
+            usagetype = f"{region_code}-ApiGatewayRequest"
         
         attribute_filters = [
             {"key": "usagetype", "value": usagetype}
@@ -352,14 +511,25 @@ class APIGatewayQueryBuilder(QueryBuilder):
     @staticmethod
     def build_v2_api_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual properties from CloudFormation template
         protocol_type = properties.get("ProtocolType", "HTTP")
+        name = properties.get("Name", "")
+        description = properties.get("Description", "")
+        cors_configuration = properties.get("CorsConfiguration", {})
+        
         region_code = get_region_code(region)
         
         # Use region-specific usage type for API Gateway HTTP requests
         if protocol_type.upper() == "HTTP":
-            usagetype = f"{region_code}-ApiGatewayHttpRequest"
+            if region_code == "USE1":
+                usagetype = "USE1-ApiGatewayHttpRequest"
+            else:
+                usagetype = f"{region_code}-ApiGatewayHttpRequest"
         else:
-            usagetype = f"{region_code}-ApiGatewayRequest"
+            if region_code == "USE1":
+                usagetype = "USE1-ApiGatewayRequest"
+            else:
+                usagetype = f"{region_code}-ApiGatewayRequest"
         
         attribute_filters = [
             {"key": "usagetype", "value": usagetype}
@@ -378,14 +548,11 @@ class KMSQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         region_code = get_region_code(region)
         
-        # KMS keys have a fixed monthly cost per key
-        if region_code == "USE1":
-            usagetype = "KMS-Keys"
-        else:
-            usagetype = f"{region_code}-KMS-Keys"
-        
+        # KMS pricing is not available in Infracost API
+        # Return a query that will fail gracefully and use fallback pricing
+        # This allows the enhanced pricing details to be used instead
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "value": "KMS-NotFound"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -399,6 +566,14 @@ class EKSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual EKS cluster properties
+        name = properties.get("Name", "")
+        version = properties.get("Version", "")
+        role_arn = properties.get("RoleArn", "")
+        resources_vpc_config = properties.get("ResourcesVpcConfig", {})
+        logging = properties.get("Logging", {})
+        encryption_config = properties.get("EncryptionConfig", [])
+        
         region_code = get_region_code(region)
         
         # EKS clusters have a fixed hourly cost
@@ -418,7 +593,15 @@ class EKSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_nodegroup_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        # Extract actual node group properties
+        nodegroup_name = properties.get("NodegroupName", "")
+        cluster_name = properties.get("ClusterName", "")
         instance_types = properties.get("InstanceTypes", ["t3.medium"])
+        ami_type = properties.get("AmiType", "AL2_x86_64")
+        capacity_type = properties.get("CapacityType", "ON_DEMAND")
+        scaling_config = properties.get("ScalingConfig", {})
+        disk_size = properties.get("DiskSize", 20)
+        node_role = properties.get("NodeRole", "")
         
         attribute_filters = [
             {"key": "instanceType", "value": instance_types[0] if instance_types else "t3.medium"}
@@ -692,7 +875,7 @@ class EFSQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         
         attribute_filters = [
-            {"key": "storageClass", "value": "Standard"}
+            {"key": "storageClass", "value": "General Purpose"}
         ]
         
         return QueryBuilder._build_base_query(
