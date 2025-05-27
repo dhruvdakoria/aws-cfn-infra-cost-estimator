@@ -1,11 +1,165 @@
 🌍 Using AWS region: ca-central-1
+
+🔍 DEBUG: AWS::KMS::Key
+Query: 
+        {
+          products(
+            filter: {
+              vendorName: "aws",
+              service: "awskms",
+              productFamily: "Encryption Key",
+              region: "ca-central-1",
+              attributeFilters: [
+                { key: "usagetype", value: "ca-central-1-KMS-Keys" }
+                
+              ]
+            }
+          ) {
+            prices(filter: {purchaseOption: "on_demand"}) { 
+              USD 
+              unit
+              description
+              startUsageAmount
+              endUsageAmount
+            }
+          }
+        }
+        
+Response: {
+  "data": {
+    "products": [
+      {
+        "prices": [
+          {
+            "USD": "1",
+            "unit": "Keys",
+            "description": "$1 per customer managed KMS key version in Canada (Central)",
+            "startUsageAmount": "0",
+            "endUsageAmount": "Inf"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+🔍 DEBUG: AWS::EKS::Cluster
+Query: 
+        {
+          products(
+            filter: {
+              vendorName: "aws",
+              service: "AmazonEKS",
+              productFamily: "Compute",
+              region: "ca-central-1",
+              attributeFilters: [
+                { key: "usagetype", value: "EKS-Cluster-Standard-NotFound" }
+                
+              ]
+            }
+          ) {
+            prices(filter: {purchaseOption: "on_demand"}) { 
+              USD 
+              unit
+              description
+              startUsageAmount
+              endUsageAmount
+            }
+          }
+        }
+        
+Response: {
+  "data": {
+    "products": []
+  }
+}
+
+🔍 DEBUG: AWS::Route53::HostedZone
+Query: 
+        {
+          products(
+            filter: {
+              vendorName: "aws",
+              service: "AmazonRoute53",
+              productFamily: "DNS Zone",
+              attributeFilters: [
+                { key: "usagetype", value: "HostedZone" }
+                
+              ]
+            }
+          ) {
+            prices(filter: {purchaseOption: "on_demand"}) { 
+              USD 
+              unit
+              description
+              startUsageAmount
+              endUsageAmount
+            }
+          }
+        }
+        
+Response: {
+  "data": {
+    "products": [
+      {
+        "prices": [
+          {
+            "USD": "0.5",
+            "unit": "HostedZone",
+            "description": "$0.50 per Hosted Zone for the first 25 Hosted Zones",
+            "startUsageAmount": "0",
+            "endUsageAmount": "25"
+          },
+          {
+            "USD": "0.1",
+            "unit": "HostedZone",
+            "description": "$0.10 per Hosted Zone for additional Hosted Zones",
+            "startUsageAmount": "25",
+            "endUsageAmount": "Inf"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+🔍 DEBUG: AWS::CloudWatch::Dashboard
+Query: 
+        {
+          products(
+            filter: {
+              vendorName: "aws",
+              service: "AmazonCloudWatch",
+              productFamily: "Dashboard",
+              region: "ca-central-1",
+              attributeFilters: [
+                { key: "usagetype", value: "Dashboard-NotFound" }
+                
+              ]
+            }
+          ) {
+            prices(filter: {purchaseOption: "on_demand"}) { 
+              USD 
+              unit
+              description
+              startUsageAmount
+              endUsageAmount
+            }
+          }
+        }
+        
+Response: {
+  "data": {
+    "products": []
+  }
+}
 # 💰 CloudFormation Stack Cost Comparison
 ============================================================
 
 ## 📊 Cost Impact Summary
 💵 **Current Monthly Cost**: $107.53
-💰 **New Monthly Cost**: $157.42
-📈 **Monthly Cost INCREASE**: $+49.89 (+46.4%)
+💰 **New Monthly Cost**: $234.42
+📈 **Monthly Cost INCREASE**: $+126.89 (+118.0%)
 
 ## 🔄 Resource Changes Summary
 ➕ **Added**: 44 resources
@@ -16,9 +170,9 @@
 +-------------------------+-----------+-------+----------+
 |      Resource Type      |   Current |   New |   Change |
 +=========================+===========+=======+==========+
-| 💰 Fixed Cost Resources  |         4 |     7 |       +3 |
+| 💰 Fixed Cost Resources  |         4 |    10 |       +6 |
 +-------------------------+-----------+-------+----------+
-| 📊 Usage-Based Resources |         3 |    10 |       +7 |
+| 📊 Usage-Based Resources |         3 |    16 |      +13 |
 +-------------------------+-----------+-------+----------+
 |    🆓 Free Resources     |        19 |    18 |       -1 |
 +-------------------------+-----------+-------+----------+
@@ -39,12 +193,19 @@
 | 💰 RDS::DBInstance                            | TestRDSInstance       | $13.87/month                               | $0.019000 per Hrs - USD 0.019 per db.t3.micro     |
 |                                              |                       |                                            | Sing...                                           |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 💰 KMS::Key                                   | TestKMSKey            | $1.00/month                                | $1.000000 per Keys - $1 per customer managed KMS  |
+|                                              |                       |                                            | k...                                              |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 💰 SecretsManager::Secret                     | TestSecret            | $0.40/month                                | $0.400000 per Secrets - $0.40 per Secret          |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 💰 EC2::NatGateway                            | TestNATGateway        | $36.50/month                               | $0.050000 per Hrs - $0.05 per NAT Gateway Hour    |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 💰 ElastiCache::CacheCluster                  | TestElastiCacheClu... | $13.87/month                               | $0.019000 per Hrs - $0.019 per T3 Micro Cache     |
 |                                              |                       |                                            | node...                                           |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 💰 EKS::Cluster                               | TestEKSCluster        | $73.00/month                               | $0.10 per hour ($73/month) + worker node costs    |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 💰 CloudWatch::Dashboard                      | TestDashboard         | $3.00/month                                | $3.00 per dashboard per month                     |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 📊 EC2::EIP                                   | TestEIP               | Usage-based                                | Monthly cost depends on usage                     |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
@@ -93,11 +254,25 @@
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | └─ ... and 5 more tiers                      |                       | Varies                                     | See detailed breakdown below                      |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 📊 DynamoDB::Table                            | TestDynamoDBTable     | Usage-based                                | On-demand or provisioned capacity pricing         |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 📊 Route53::HostedZone                        | TestHostedZone        | Usage-based                                | Monthly cost depends on usage                     |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| ├─ Hostedzone (first 25)                     |                       | $0.50 per HostedZone                       | Monthly cost depends on usage                     |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| ├─ Hostedzone (next Inf)                     |                       | $0.10 per HostedZone                       | Monthly cost depends on usage                     |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 📊 CloudWatch::Alarm                          | TestAlarm             | Usage-based                                | $0.100000 per Alarms - $0.10 per alarm metric     |
 |                                              |                       |                                            | mont...                                           |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 📊 StepFunctions::StateMachine                | TestStateMachine      | Usage-based                                | Standard and Express workflow pricing             |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 📊 ECR::Repository                            | TestECRRepository     | Usage-based                                | Storage and data transfer pricing                 |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 📊 EFS::FileSystem                            | TestEFSFileSystem     | Usage-based                                | $0.330000 per GB-Mo - USD $0.33 per GB-Mo for     |
 |                                              |                       |                                            | Stan...                                           |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 📊 CodeBuild::Project                         | TestCodeBuildProje... | Usage-based                                | Build minutes by compute type                     |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 📊 S3::Bucket                                 | CloudTrailS3Bucket    | Usage-based                                | Monthly cost depends on usage                     |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
@@ -106,6 +281,8 @@
 | ├─ Gb-Mo (next 460K)                         |                       | $0.02 per GB-Mo                            | Monthly cost depends on usage                     |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | ├─ Gb-Mo (next Inf)                          |                       | $0.02 per GB-Mo                            | Monthly cost depends on usage                     |
++----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
+| 📊 CloudTrail::Trail                          | TestCloudTrail        | Usage-based                                | Management and data event pricing                 |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
 | 🆓 EC2::VPC                                   | TestVPC               | Free                                       | This resource is free to use                      |
 +----------------------------------------------+-----------------------+--------------------------------------------+---------------------------------------------------+
@@ -228,6 +405,17 @@ Complete pricing tiers for usage-based resources:
 +--------+-------------------------------------------+--------------------------------------------+
 | Tier 8 | Requests (next Inf)                       | $1.66 per 1M requests                      |
 +--------+-------------------------------------------+--------------------------------------------+
+
+### Route53::HostedZone (TestHostedZone)
+**Tiered pricing with 2 tiers**
+
++--------+-----------------------+----------------------+
+| Tier   | Usage Range           | Price                |
++========+=======================+======================+
+| Tier 1 | Hostedzone (first 25) | $0.50 per HostedZone |
++--------+-----------------------+----------------------+
+| Tier 2 | Hostedzone (next Inf) | $0.10 per HostedZone |
++--------+-----------------------+----------------------+
 
 ### S3::Bucket (CloudTrailS3Bucket)
 **Tiered pricing with 3 tiers**

@@ -81,6 +81,39 @@ class QueryBuilder:
         }}
         '''
         return query
+    
+    @staticmethod
+    def _build_global_query(service: str, product_family: str, 
+                           attribute_filters: list, purchase_option: str = "on_demand") -> str:
+        """Build a GraphQL query for global services (without region filter)."""
+        filters_str = ""
+        for i, filter_item in enumerate(attribute_filters):
+            comma = "," if i < len(attribute_filters) - 1 else ""
+            filters_str += f'{{ key: "{filter_item["key"]}", value: "{filter_item["value"]}" }}{comma}\n                '
+        
+        query = f'''
+        {{
+          products(
+            filter: {{
+              vendorName: "aws",
+              service: "{service}",
+              productFamily: "{product_family}",
+              attributeFilters: [
+                {filters_str}
+              ]
+            }}
+          ) {{
+            prices(filter: {{purchaseOption: "{purchase_option}"}}) {{ 
+              USD 
+              unit
+              description
+              startUsageAmount
+              endUsageAmount
+            }}
+          }}
+        }}
+        '''
+        return query
 
 
 class EC2QueryBuilder(QueryBuilder):
@@ -393,11 +426,17 @@ class CloudWatchQueryBuilder(QueryBuilder):
     @staticmethod
     def build_dashboard_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
         
-        attribute_filters = []
+        # CloudWatch dashboards have a fixed monthly cost of $3.00 per dashboard
+        # Dashboard pricing is not available in Infracost API
+        # Use a non-existent usage type to trigger fallback pricing
+        attribute_filters = [
+            {"key": "usagetype", "value": "Dashboard-NotFound"}
+        ]
         
         return QueryBuilder._build_base_query(
-            "AmazonCloudWatch", "Dashboard", region, attribute_filters, purchase_option=""
+            "AmazonCloudWatch", "Dashboard", region, attribute_filters
         )
     
     @staticmethod
@@ -428,14 +467,10 @@ class DynamoDBQueryBuilder(QueryBuilder):
         stream_specification = properties.get("StreamSpecification", {})
         sse_specification = properties.get("SSESpecification", {})
         
-        region_code = get_region_code(region)
-        
-        # Use storage pricing which works reliably
-        # This gives us the storage cost component of DynamoDB
-        usagetype = "TimedStorage-ByteHrs"
-        
+        # DynamoDB pricing is not available in Infracost API
+        # Use a non-existent usage type to trigger fallback pricing
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "value": "DynamoDB-NotFound"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -510,17 +545,17 @@ class KMSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_key_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
         
-        # KMS pricing is not available in Infracost API
-        # Return a query that will fail gracefully and use fallback pricing
-        # This allows the enhanced pricing details to be used instead
+        # KMS keys have a fixed monthly cost per key
+        # Use the correct usage type pattern found in Infracost API
+        usagetype = f"{region}-KMS-Keys"
+        
         attribute_filters = [
-            {"key": "usagetype", "value": "KMS-NotFound"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
-            "awskms", "Key Management", region, attribute_filters
+            "awskms", "Encryption Key", region, attribute_filters
         )
 
 
@@ -540,18 +575,15 @@ class EKSQueryBuilder(QueryBuilder):
         
         region_code = get_region_code(region)
         
-        # EKS clusters have a fixed hourly cost
-        if region_code == "USE1":
-            usagetype = "EKS-Cluster-Hours"
-        else:
-            usagetype = f"{region_code}-EKS-Cluster-Hours"
-        
+        # EKS clusters have a fixed hourly cost of $0.10 per hour
+        # Standard cluster pricing is not available in Infracost API, only Auto Mode
+        # Use a non-existent usage type to trigger fallback pricing
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "value": "EKS-Cluster-Standard-NotFound"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEKS", "Kubernetes Cluster", region, attribute_filters
+            "AmazonEKS", "Compute", region, attribute_filters
         )
     
     @staticmethod
@@ -625,16 +657,14 @@ class Route53QueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_hosted_zone_query(properties: Dict[str, Any]) -> str:
-        region = properties.get("Region", "us-east-1")
-        
         # Route 53 hosted zones have a fixed monthly cost
-        # Route 53 hosted zones are not region-specific
+        # Route 53 is a global service, so no region filter is needed
         attribute_filters = [
             {"key": "usagetype", "value": "HostedZone"}
         ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonRoute53", "Hosted Zone", region, attribute_filters
+        return QueryBuilder._build_global_query(
+            "AmazonRoute53", "DNS Zone", attribute_filters
         )
     
     @staticmethod
@@ -723,8 +753,10 @@ class StepFunctionsQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         state_machine_type = properties.get("StateMachineType", "STANDARD")
         
+        # StepFunctions pricing is not available in Infracost API
+        # Use a non-existent usage type to trigger fallback pricing
         attribute_filters = [
-            {"key": "workflowType", "value": state_machine_type.lower()}
+            {"key": "usagetype", "value": "StepFunctions-NotFound"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -822,8 +854,10 @@ class ECRQueryBuilder(QueryBuilder):
     def build_repository_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # ECR pricing is not available in Infracost API
+        # Use a non-existent usage type to trigger fallback pricing
         attribute_filters = [
-            {"key": "usagetype", "value": "RepositoryStorage"}
+            {"key": "usagetype", "value": "ECR-NotFound"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -854,16 +888,11 @@ class CodeBuildQueryBuilder(QueryBuilder):
     def build_project_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         compute_type = properties.get("ComputeType", "BUILD_GENERAL1_SMALL")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for CodeBuild
-        if region_code == "USE1":
-            usagetype = "Build-Min"
-        else:
-            usagetype = f"{region_code}-Build-Min"
-        
+        # CodeBuild pricing is not available in Infracost API
+        # Use a non-existent usage type to trigger fallback pricing
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "value": "CodeBuild-NotFound"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -903,17 +932,18 @@ class CloudTrailQueryBuilder(QueryBuilder):
         region_code = get_region_code(region)
         
         # Use region-specific usage type for CloudTrail
+        # Found working pattern: USE1-PaidEventsRecorded
         if region_code == "USE1":
-            usagetype = "DataEvents"
+            usagetype = "USE1-PaidEventsRecorded"
         else:
-            usagetype = f"{region_code}-DataEvents"
+            usagetype = f"{region_code}-PaidEventsRecorded"
         
         attribute_filters = [
             {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSCloudTrail", "CloudTrail", region, attribute_filters
+            "AWS CloudTrail", "CloudTrail", region, attribute_filters
         )
 
 

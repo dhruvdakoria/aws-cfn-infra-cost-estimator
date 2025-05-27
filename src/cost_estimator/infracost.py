@@ -172,14 +172,62 @@ class InfracostEstimator(CostEstimator):
             # Build the GraphQL query
             query = query_builder(resource_properties)
             
+            # Debug output for problematic resources (disabled)
+            # if resource_type in ["AWS::KMS::Key", "AWS::EKS::Cluster", "AWS::Route53::HostedZone", "AWS::CloudWatch::Dashboard"]:
+            #     print(f"\n🔍 DEBUG: {resource_type}")
+            #     print(f"Query: {query}")
+            
             # Make the API request
             response = self._make_graphql_request(query)
+            
+            # Debug output for problematic resources (disabled)
+            # if resource_type in ["AWS::KMS::Key", "AWS::EKS::Cluster", "AWS::Route53::HostedZone", "AWS::CloudWatch::Dashboard"]:
+            #     print(f"Response: {json.dumps(response, indent=2)}")
             
             # Parse response - now handle tiered pricing
             products = response.get("data", {}).get("products", [])
             prices = []
             if products:
                 prices = products[0].get("prices", [])
+            
+            # If no products found, check for fallback pricing
+            if not products:
+                # Get pricing model information from static data as fallback
+                region = resource_properties.get("Region", "us-east-1")
+                pricing_model, base_cost, static_pricing_details, static_unit = get_pricing_info(resource_type, region)
+                
+                # Check if we have meaningful pricing information (either base_cost > 0 or detailed pricing info)
+                if (base_cost and base_cost > 0) or (static_pricing_details and static_pricing_details != "Pricing information not available"):
+                    # Use fallback pricing
+                    if base_cost and base_cost > 0:
+                        # Fixed cost resource
+                        hourly_cost = base_cost / 730
+                        monthly_cost = base_cost
+                        description = f"Using fallback pricing: {static_pricing_details}"
+                    else:
+                        # Usage-based resource with base_cost = 0.0
+                        hourly_cost = 0.0
+                        monthly_cost = 0.0
+                        description = "Monthly cost depends on usage"
+                    
+                    return ResourceCost(
+                        resource_type=resource_type,
+                        resource_id=resource_properties.get("id", "unknown"),
+                        hourly_cost=hourly_cost,
+                        monthly_cost=monthly_cost,
+                        currency="USD",
+                        usage_type="usage_based" if pricing_model == "usage_based" else "fallback_pricing",
+                        description=description,
+                        metadata={
+                            "fallback_pricing": True,
+                            "static_pricing_details": static_pricing_details
+                        },
+                        pricing_model=pricing_model,
+                        pricing_details=static_pricing_details
+                    )
+                else:
+                    # No fallback pricing available
+                    raise PricingDataError(f"No pricing data available for {resource_type}")
             
             # Check if we have tiered pricing (multiple prices with usage amounts)
             has_tiered_pricing = len(prices) > 1 and any(p.get("startUsageAmount") for p in prices)
