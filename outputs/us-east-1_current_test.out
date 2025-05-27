@@ -3,8 +3,8 @@
 ============================================================
 
 ## 📊 Cost Summary
-💰 **Fixed Monthly Cost**: $294.21
-⏰ **Fixed Hourly Cost**: $0.4030
+💰 **Fixed Monthly Cost**: $2481.21
+⏰ **Fixed Hourly Cost**: $3.3989
 📊 **Usage-Based Resources**: 16 (costs depend on usage)
 🆓 **Free Resources**: 18
 💵 **Paid Resources**: 10
@@ -38,7 +38,8 @@
 | 💰 EKS::Cluster                         | TestEKSCluster          | $73.00/month          | $0.100000 per Hours - Amazon EKS cluster usage in US East   |
 |                                        |                         |                       | (N...                                                       |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 💰 CloudWatch::Dashboard                | TestDashboard           | $3.00/month           | $3.00 per dashboard per month                               |
+| 💰 CloudWatch::Dashboard                | TestDashboard           | $2190.00/month        | $3.000000 per Dashboards - $3.00 per Dashboard per Month    |
+|                                        |                         |                       | (>5...                                                      |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | 📊 EC2::EIP                             | TestEIP                 | Usage-based           | Monthly cost depends on usage                               |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
@@ -54,8 +55,8 @@
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | ├─ Gb-Mo (next Inf)                    |                         | $0.02 per GB-Mo       | Monthly cost depends on usage                               |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 📊 Lambda::Function                     | TestLambdaFunction      | Usage-based           | $0.000050 per Lambda-GB-Second - AWS Lambda Edge - Total    |
-|                                        |                         |                       | Com...                                                      |
+| 📊 Lambda::Function                     | TestLambdaFunction      | Usage-based           | $0.000000 per GB-Seconds - AWS Lambda - Ephemeral Storage   |
+|                                        |                         |                       | fo...                                                       |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | 📊 Logs::LogGroup                       | TestLogGroup            | Usage-based           | $0.500000 per GB - $0.50 per GB custom log data ingested in |
 |                                        |                         |                       | ...                                                         |
@@ -91,17 +92,19 @@
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | ├─ Hostedzone (next Inf)               |                         | $0.10 per HostedZone  | Monthly cost depends on usage                               |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 📊 CloudWatch::Alarm                    | TestAlarm               | Usage-based           | $0.100000 per Alarms - $0.10 per metric analyzed by the     |
-|                                        |                         |                       | alar...                                                     |
+| 📊 CloudWatch::Alarm                    | TestAlarm               | Usage-based           | $0.100000 per Alarms - $0.10 per alarm metric month         |
+|                                        |                         |                       | (standar...                                                 |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 📊 StepFunctions::StateMachine          | TestStateMachine        | Usage-based           | Standard and Express workflow pricing                       |
+| 📊 StepFunctions::StateMachine          | TestStateMachine        | Usage-based           | $0.000025 per StateTransitions - $0.000025 per state        |
+|                                        |                         |                       | transit...                                                  |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 📊 ECR::Repository                      | TestECRRepository       | Usage-based           | Storage and data transfer pricing                           |
+| 📊 ECR::Repository                      | TestECRRepository       | Usage-based           | $0.100000 per GB-Mo - $0.10 per GB-month of data storage    |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | 📊 EFS::FileSystem                      | TestEFSFileSystem       | Usage-based           | $0.300000 per GB-Mo - USD $0.30 per GB-Mo for Standard      |
 |                                        |                         |                       | stora...                                                    |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 📊 CodeBuild::Project                   | TestCodeBuildProject    | Usage-based           | Build minutes by compute type                               |
+| 📊 CodeBuild::Project                   | TestCodeBuildProject    | Usage-based           | $0.000030 per seconds - $0.00003 per second for Docker-     |
+|                                        |                         |                       | Sec:L...                                                    |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | 📊 S3::Bucket                           | CloudTrailS3Bucket      | Usage-based           | Monthly cost depends on usage                               |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
@@ -111,7 +114,8 @@
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | ├─ Gb-Mo (next Inf)                    |                         | $0.02 per GB-Mo       | Monthly cost depends on usage                               |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
-| 📊 CloudTrail::Trail                    | TestCloudTrail          | Usage-based           | Management and data event pricing                           |
+| 📊 CloudTrail::Trail                    | TestCloudTrail          | Usage-based           | $0.000001 per Events - 0.000001 per data event recorded in  |
+|                                        |                         |                       | U...                                                        |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+
 | 🆓 EC2::VPC                             | TestVPC                 | Free                  | This resource is free to use                                |
 +----------------------------------------+-------------------------+-----------------------+-------------------------------------------------------------+

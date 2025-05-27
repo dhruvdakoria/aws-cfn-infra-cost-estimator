@@ -184,6 +184,22 @@ def create_test_properties(resource_type: str, region: str):
                 "InstanceCount": 1
             }
         })
+    elif resource_type == "AWS::Neptune::DBInstance":
+        base_properties.update({
+            "DBInstanceClass": "db.t3.medium",
+            "DBClusterIdentifier": "test-cluster"
+        })
+    elif resource_type == "AWS::ECS::Service":
+        base_properties.update({
+            "ServiceName": "test-service",
+            "LaunchType": "FARGATE",
+            "TaskDefinition": "test-task-def"
+        })
+    elif resource_type == "AWS::EKS::FargateProfile":
+        base_properties.update({
+            "FargateProfileName": "test-fargate-profile",
+            "ClusterName": "test-cluster"
+        })
     # Add more resource types as needed
     
     return base_properties

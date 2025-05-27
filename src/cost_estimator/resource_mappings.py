@@ -24,12 +24,7 @@ PAID_RESOURCE_MAPPINGS = {
         "terraform_equivalent": "aws_apigatewayv2_api"
     },
     
-    # Application Auto Scaling
-    "AWS::ApplicationAutoScaling::ScalableTarget": {
-        "service": "AmazonEC2",
-        "productFamily": "Auto Scaling",
-        "terraform_equivalent": "aws_appautoscaling_target"
-    },
+
     
     # Backup
     "AWS::Backup::BackupVault": {
@@ -39,28 +34,11 @@ PAID_RESOURCE_MAPPINGS = {
     },
     
     # Certificate Manager (ACM)
-    "AWS::ACMPCA::CertificateAuthority": {
-        "service": "AWSCertificateManager",
-        "productFamily": "Certificate Authority",
-        "terraform_equivalent": "aws_acmpca_certificate_authority"
-    },
     "AWS::CertificateManager::Certificate": {
         "service": "AWSCertificateManager",
         "productFamily": "Certificate",
         "terraform_equivalent": "aws_acm_certificate",
         "notes": "Private certificates are paid, public SSL/TLS certificates are free"
-    },
-    
-    # CloudFormation
-    "AWS::CloudFormation::Stack": {
-        "service": "AWSCloudFormation",
-        "productFamily": "CloudFormation",
-        "terraform_equivalent": "aws_cloudformation_stack"
-    },
-    "AWS::CloudFormation::StackSet": {
-        "service": "AWSCloudFormation",
-        "productFamily": "CloudFormation",
-        "terraform_equivalent": "aws_cloudformation_stack_set"
     },
     
     # CloudFront
@@ -262,12 +240,7 @@ PAID_RESOURCE_MAPPINGS = {
         "terraform_equivalent": "aws_elasticsearch_domain"
     },
     
-    # Elastic Beanstalk
-    "AWS::ElasticBeanstalk::Environment": {
-        "service": "AWSElasticBeanstalk",
-        "productFamily": "Environment",
-        "terraform_equivalent": "aws_elastic_beanstalk_environment"
-    },
+
     
     # Elastic Load Balancing
     "AWS::ElasticLoadBalancing::LoadBalancer": {
@@ -555,6 +528,9 @@ FREE_RESOURCES: Set[str] = {
     # ACM (Public certificates are free)
     "AWS::CertificateManager::Certificate",  # Note: Private certificates are paid
     
+    # ACMPCA (Certificate Authority - Infrastructure/Management service)
+    "AWS::ACMPCA::CertificateAuthority",  # Infrastructure/Management service - free
+    
     # API Gateway (Configuration resources are free, usage is paid)
     "AWS::ApiGateway::Account",
     "AWS::ApiGateway::ApiKey",
@@ -590,6 +566,7 @@ FREE_RESOURCES: Set[str] = {
     
     # Application Auto Scaling
     "AWS::ApplicationAutoScaling::ScalingPolicy",
+    "AWS::ApplicationAutoScaling::ScalableTarget",  # Infrastructure/Management service - free
     
     # App Config
     "AWS::AppConfig::Extension",
@@ -625,6 +602,8 @@ FREE_RESOURCES: Set[str] = {
     
     # CloudFormation
     "AWS::CloudFormation::Type",
+    "AWS::CloudFormation::Stack",  # Infrastructure/Management service - free
+    "AWS::CloudFormation::StackSet",  # Infrastructure/Management service - free
     
     # CloudFront
     "AWS::CloudFront::OriginAccessIdentity",
@@ -745,6 +724,7 @@ FREE_RESOURCES: Set[str] = {
     
     # Elastic Beanstalk
     "AWS::ElasticBeanstalk::Application",
+    "AWS::ElasticBeanstalk::Environment",  # Infrastructure/Management service - free
     
     # ELB
     "AWS::ElasticLoadBalancing::LoadBalancer",  # Attachments only

@@ -1151,7 +1151,6 @@ class SSMQueryBuilder(QueryBuilder):
         tier = properties.get("Tier", "Standard")
         
         # SSM Parameter uses AWSSystemsManager service per Go file
-        # Only advanced tier parameters have costs - standard tier is free
         if tier.lower() == "advanced":
             # Advanced tier has parameter storage costs
             attribute_filters = [
@@ -1161,8 +1160,13 @@ class SSMQueryBuilder(QueryBuilder):
                 "AWSSystemsManager", "AWS Systems Manager", region, attribute_filters
             )
         else:
-            # Standard tier parameters are free - return empty query to indicate no cost
-            return ""
+            # Standard tier parameters are free - return a query that will show $0 cost
+            attribute_filters = [
+                {"key": "usagetype", "valueRegex": "/PS-Advanced-Param-Tier1/"}
+            ]
+            return QueryBuilder._build_base_query(
+                "AWSSystemsManager", "AWS Systems Manager", region, attribute_filters
+            )
     
     @staticmethod
     def build_activation_query(properties: Dict[str, Any]) -> str:
@@ -1185,9 +1189,9 @@ class CloudFrontQueryBuilder(QueryBuilder):
     def build_distribution_query(properties: Dict[str, Any]) -> str:
         # CloudFront is a global service, so no region filter needed
         # CloudFront Go file shows no ProductFamily is used, only service and attribute filters
-        # Use transferType filter to match data transfer costs (most common CloudFront cost)
+        # Use invalidation requests as a basic cost component that should be available
         attribute_filters = [
-            {"key": "transferType", "value": "CloudFront Outbound"}
+            {"key": "usagetype", "value": "Invalidations"}
         ]
         
         return QueryBuilder._build_global_query(
@@ -1197,12 +1201,13 @@ class CloudFrontQueryBuilder(QueryBuilder):
     @staticmethod
     def build_function_query(properties: Dict[str, Any]) -> str:
         # CloudFront is a global service, so no region filter needed
+        # CloudFront Functions use AmazonCloudFront service with no ProductFamily per Go file
         attribute_filters = [
-            {"key": "usagetype", "valueRegex": "/Request/"}
+            {"key": "requestDescription", "valueRegex": "/CloudFront Functions/"}
         ]
         
         return QueryBuilder._build_global_query(
-            "AmazonCloudFront", "CloudFront Functions", attribute_filters
+            "AmazonCloudFront", "", attribute_filters
         )
 
 
@@ -1246,12 +1251,14 @@ class NeptuneQueryBuilder(QueryBuilder):
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Neptune Cluster uses AmazonNeptune service with no ProductFamily per Go file
+        # Use storage usage as the primary cost component
         attribute_filters = [
-            {"key": "databaseEngine", "value": "Neptune"}
+            {"key": "usagetype", "valueRegex": "/StorageUsage$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonNeptune", "Database Cluster", region, attribute_filters
+            "AmazonNeptune", "", region, attribute_filters
         )
     
     @staticmethod
@@ -1261,9 +1268,10 @@ class NeptuneQueryBuilder(QueryBuilder):
         
         # Neptune uses AmazonNeptune service and no ProductFamily per Go file
         # Uses specific attribute filters for instanceType and usagetype
+        instance_class_lower = instance_class.lower()
         attribute_filters = [
-            {"key": "instanceType", "value": instance_class.lower()},
-            {"key": "usagetype", "valueRegex": f"/InstanceUsage:{instance_class.lower()}$/"}
+            {"key": "instanceType", "value": instance_class_lower},
+            {"key": "usagetype", "valueRegex": f"/InstanceUsage:{instance_class_lower}$/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -1281,7 +1289,7 @@ class ElasticsearchQueryBuilder(QueryBuilder):
         instance_type = cluster_config.get("InstanceType", "m4.large.elasticsearch")
         
         # Elasticsearch uses AmazonES service and Amazon OpenSearch Service Instance product family per Go file
-        # Convert elasticsearch instance type to search instance type (opensearchifyClusterInstanceType function)
+        # Convert instance type from .elasticsearch to .search format as per Go file
         opensearch_instance_type = instance_type.replace(".elasticsearch", ".search")
         
         attribute_filters = [
@@ -1418,8 +1426,8 @@ class DMSQueryBuilder(QueryBuilder):
         instance_class = properties.get("ReplicationInstanceClass", "dms.t3.micro")
         multi_az = properties.get("MultiAZ", False)
         
-        # DMS uses AWSDatabaseMigrationSvc service per Go file
-        # Parse instance type from the class
+        # DMS uses AWSDatabaseMigrationSvc service with no ProductFamily per Go file
+        # Parse instance type from the class (remove "dms." prefix)
         instance_type_parts = instance_class.split(".")
         if len(instance_type_parts) >= 3:
             instance_type = ".".join(instance_type_parts[1:])
@@ -1573,13 +1581,32 @@ class DirectoryServiceQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         edition = properties.get("Edition", "Standard")
         
+        # Directory Service uses AWSDirectoryService service and AWS Directory Service product family per Go file
+        # Map region to region name for location attribute
+        region_name_mapping = {
+            "us-east-1": "US East (N. Virginia)",
+            "us-east-2": "US East (Ohio)",
+            "us-west-1": "US West (N. California)",
+            "us-west-2": "US West (Oregon)",
+            "ca-central-1": "Canada (Central)",
+            "eu-west-1": "Europe (Ireland)",
+            "eu-west-2": "Europe (London)",
+            "eu-central-1": "Europe (Frankfurt)",
+            "ap-southeast-1": "Asia Pacific (Singapore)",
+            "ap-southeast-2": "Asia Pacific (Sydney)",
+            "ap-northeast-1": "Asia Pacific (Tokyo)"
+        }
+        
+        region_name = region_name_mapping.get(region, "US East (N. Virginia)")
+        
         attribute_filters = [
             {"key": "directoryType", "value": "Microsoft AD"},
-            {"key": "directorySize", "value": edition}
+            {"key": "directorySize", "value": edition},
+            {"key": "location", "value": region_name}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSDirectoryService", "Directory Service", region, attribute_filters
+            "AWSDirectoryService", "AWS Directory Service", region, attribute_filters
         )
     
     @staticmethod
@@ -1587,13 +1614,32 @@ class DirectoryServiceQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         size = properties.get("Size", "Small")
         
+        # Directory Service uses AWSDirectoryService service and AWS Directory Service product family per Go file
+        # Map region to region name for location attribute
+        region_name_mapping = {
+            "us-east-1": "US East (N. Virginia)",
+            "us-east-2": "US East (Ohio)",
+            "us-west-1": "US West (N. California)",
+            "us-west-2": "US West (Oregon)",
+            "ca-central-1": "Canada (Central)",
+            "eu-west-1": "Europe (Ireland)",
+            "eu-west-2": "Europe (London)",
+            "eu-central-1": "Europe (Frankfurt)",
+            "ap-southeast-1": "Asia Pacific (Singapore)",
+            "ap-southeast-2": "Asia Pacific (Sydney)",
+            "ap-northeast-1": "Asia Pacific (Tokyo)"
+        }
+        
+        region_name = region_name_mapping.get(region, "US East (N. Virginia)")
+        
         attribute_filters = [
-            {"key": "directoryType", "value": "Simple AD"},
-            {"key": "directorySize", "value": size}
+            {"key": "directoryType", "valueRegex": "/Simple AD/i"},
+            {"key": "directorySize", "value": size},
+            {"key": "location", "value": region_name}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSDirectoryService", "Directory Service", region, attribute_filters
+            "AWSDirectoryService", "AWS Directory Service", region, attribute_filters
         )
 
 
@@ -1604,12 +1650,13 @@ class EC2AdvancedQueryBuilder(QueryBuilder):
     def build_client_vpn_endpoint_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Client VPN endpoint uses AmazonVPC service per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "ClientVPN-EndpointHours"}
+            {"key": "usagetype", "valueRegex": "/ClientVPN-ConnectionHours/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEC2", "VPN", region, attribute_filters
+            "AmazonVPC", "", region, attribute_filters
         )
     
     @staticmethod
@@ -1617,9 +1664,12 @@ class EC2AdvancedQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         instance_type = properties.get("InstanceType", "m5.large")
         
+        # Extract instance family from instance type (e.g., "m5" from "m5.large")
+        instance_family = instance_type.split(".")[0] if "." in instance_type else instance_type
+        
+        # EC2 dedicated host uses AmazonEC2 service and Dedicated Host product family per Go file
         attribute_filters = [
-            {"key": "instanceType", "value": instance_type},
-            {"key": "tenancy", "value": "Host"}
+            {"key": "usagetype", "valueRegex": f"/HostUsage:{instance_family}$/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -1645,24 +1695,29 @@ class EC2AdvancedQueryBuilder(QueryBuilder):
     def build_transit_gateway_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Transit Gateway uses AmazonVPC service per Go file
+        # Use TransitGateway-Hours usage type for the gateway itself
         attribute_filters = [
-            {"key": "usagetype", "value": "TransitGateway-Hours"}
+            {"key": "usagetype", "valueRegex": "/TransitGateway-Hours/"},
+            {"key": "operation", "value": "TransitGatewayVPC"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEC2", "Transit Gateway", region, attribute_filters
+            "AmazonVPC", "", region, attribute_filters
         )
     
     @staticmethod
     def build_transit_gateway_attachment_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Transit Gateway VPC attachment uses AmazonVPC service per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "TransitGateway-VPC-Attachment-Hours"}
+            {"key": "usagetype", "valueRegex": "/TransitGateway-Hours/"},
+            {"key": "operation", "value": "TransitGatewayVPC"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEC2", "Transit Gateway", region, attribute_filters
+            "AmazonVPC", "", region, attribute_filters
         )
 
 
@@ -1675,17 +1730,19 @@ class ECSQueryBuilder(QueryBuilder):
         launch_type = properties.get("LaunchType", "EC2")
         
         if launch_type == "FARGATE":
+            # Fargate launch type - use vCPU hours as primary cost component per Go file
             attribute_filters = [
-                {"key": "usagetype", "value": "Fargate-vCPU-Hours"}
+                {"key": "usagetype", "valueRegex": "/Fargate-vCPU-Hours:perCPU/"}
             ]
             return QueryBuilder._build_base_query(
                 "AmazonECS", "Compute", region, attribute_filters
             )
         else:
-            # EC2 launch type - costs are from underlying EC2 instances
+            # EC2 launch type - costs are from underlying EC2 instances, ECS itself is free
+            # Return a query that will show no cost for ECS service itself
             attribute_filters = []
             return QueryBuilder._build_base_query(
-                "AmazonECS", "Container Service", region, attribute_filters, purchase_option=""
+                "AmazonECS", "Container Service", region, attribute_filters, purchase_option="on_demand"
             )
 
 
@@ -1696,8 +1753,10 @@ class EKSFargateQueryBuilder(QueryBuilder):
     def build_fargate_profile_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # EKS Fargate Profile uses AmazonEKS service and Compute product family per Go file
+        # Use vCPU hours as the primary cost component
         attribute_filters = [
-            {"key": "usagetype", "value": "Fargate-vCPU-Hours"}
+            {"key": "usagetype", "valueRegex": "/Fargate-vCPU-Hours:perCPU/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -1727,12 +1786,15 @@ class EventBridgeQueryBuilder(QueryBuilder):
     def build_event_bus_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # EventBridge uses AWSEvents service and EventBridge product family per Go file
+        # Use custom events as the primary cost component
         attribute_filters = [
-            {"key": "usagetype", "value": "Events"}
+            {"key": "eventType", "value": "Custom Event"},
+            {"key": "usagetype", "valueRegex": "/Event-64K-Chunks/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEventBridge", "Event", region, attribute_filters
+            "AWSEvents", "EventBridge", region, attribute_filters
         )
 
 
@@ -1743,23 +1805,29 @@ class FSxQueryBuilder(QueryBuilder):
     def build_filesystem_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         filesystem_type = properties.get("FileSystemType", "WINDOWS")
+        deployment_type = properties.get("DeploymentType", "SINGLE_AZ_1")
         
-        if filesystem_type == "WINDOWS":
-            service = "AmazonFSx"
-            product_family = "File System"
-        elif filesystem_type == "LUSTRE":
-            service = "AmazonFSx"
-            product_family = "Lustre File System"
+        # FSx uses AmazonFSx service with Storage product family per Go file
+        # Map deployment type to deployment option
+        deployment_option = "Multi-AZ" if "multi_az" in deployment_type.lower() else "Single-AZ"
+        
+        # Map filesystem type to correct case
+        if filesystem_type.upper() == "WINDOWS":
+            file_system_type = "Windows"
+        elif filesystem_type.upper() == "LUSTRE":
+            file_system_type = "Lustre"
+        elif filesystem_type.upper() == "OPENZFS":
+            file_system_type = "OpenZFS"
         else:
-            service = "AmazonFSx"
-            product_family = "File System"
+            file_system_type = "Windows"  # Default
         
         attribute_filters = [
-            {"key": "fileSystemType", "value": filesystem_type}
+            {"key": "deploymentOption", "value": deployment_option},
+            {"key": "fileSystemType", "value": file_system_type}
         ]
         
         return QueryBuilder._build_base_query(
-            service, product_family, region, attribute_filters
+            "AmazonFSx", "Storage", region, attribute_filters
         )
 
 
@@ -1780,10 +1848,15 @@ class GlobalAcceleratorQueryBuilder(QueryBuilder):
     def build_endpoint_group_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
-        attribute_filters = []
+        # Global Accelerator Endpoint Group uses AWSGlobalAccelerator service with no ProductFamily per Go file
+        # Use basic data transfer attributes
+        attribute_filters = [
+            {"key": "trafficDirection", "value": "In"},
+            {"key": "operation", "value": "Dominant"}
+        ]
         
         return QueryBuilder._build_base_query(
-            "AWSGlobalAccelerator", "Endpoint Group", region, attribute_filters
+            "AWSGlobalAccelerator", "", region, attribute_filters
         )
 
 
@@ -1794,35 +1867,41 @@ class GlueQueryBuilder(QueryBuilder):
     def build_crawler_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Glue Crawler uses AWSGlue service and AWS Glue product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "Crawler-DPU-Hour"}
+            {"key": "operation", "valueRegex": "/^crawlerrun$/i"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSGlue", "Crawler", region, attribute_filters
+            "AWSGlue", "AWS Glue", region, attribute_filters
         )
     
     @staticmethod
     def build_database_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
-        # Glue Data Catalog databases are free up to certain limits
-        attribute_filters = []
+        # Glue Catalog Database uses AWSGlue service and AWS Glue product family per Go file
+        # Use storage cost component as primary cost
+        attribute_filters = [
+            {"key": "group", "valueRegex": "/^data catalog storage$/i"}
+        ]
         
         return QueryBuilder._build_base_query(
-            "AWSGlue", "Data Catalog", region, attribute_filters, purchase_option=""
+            "AWSGlue", "AWS Glue", region, attribute_filters
         )
     
     @staticmethod
     def build_job_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Glue Job uses AWSGlue service and AWS Glue product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "Job-DPU-Hour"}
+            {"key": "group", "value": "ETL Job run"},
+            {"key": "operation", "valueRegex": "/^jobrun$/i"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSGlue", "Job", region, attribute_filters
+            "AWSGlue", "AWS Glue", region, attribute_filters
         )
 
 
@@ -1833,24 +1912,28 @@ class KinesisAdvancedQueryBuilder(QueryBuilder):
     def build_analytics_application_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Kinesis Analytics uses AmazonKinesisAnalytics service and Kinesis Analytics product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "KPU-Hour"}
+            {"key": "usagetype", "valueRegex": "/KPU-Hour-Java/i"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonKinesisAnalytics", "Analytics", region, attribute_filters
+            "AmazonKinesisAnalytics", "Kinesis Analytics", region, attribute_filters
         )
     
     @staticmethod
     def build_firehose_delivery_stream_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Kinesis Firehose uses AmazonKinesisFirehose service and Kinesis Firehose product family per Go file
+        # Use data ingestion as the primary cost component
         attribute_filters = [
-            {"key": "usagetype", "value": "DeliveryStream-Records"}
+            {"key": "group", "value": "Event-by-Event Processing"},
+            {"key": "sourcetype", "value": ""}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonKinesisFirehose", "Data Delivery", region, attribute_filters
+            "AmazonKinesisFirehose", "Kinesis Firehose", region, attribute_filters
         )
 
 
@@ -1862,12 +1945,24 @@ class MWAAQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         environment_class = properties.get("EnvironmentClass", "mw1.small")
         
+        # MWAA uses AmazonMWAA service with no ProductFamily per Go file
+        # Parse environment class to get size (Small, Medium, Large)
+        if "small" in environment_class.lower():
+            size = "Small"
+        elif "medium" in environment_class.lower():
+            size = "Medium"
+        elif "large" in environment_class.lower():
+            size = "Large"
+        else:
+            size = "Small"  # Default
+        
         attribute_filters = [
-            {"key": "instanceType", "value": environment_class}
+            {"key": "size", "valueRegex": f"/^{size}$/i"},
+            {"key": "type", "value": "Environment"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonMWAA", "Environment", region, attribute_filters
+            "AmazonMWAA", "", region, attribute_filters
         )
 
 
@@ -1878,12 +1973,13 @@ class NetworkFirewallQueryBuilder(QueryBuilder):
     def build_firewall_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # NetworkFirewall uses AWSNetworkFirewall service and AWS Firewall product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "Firewall-Hours"}
+            {"key": "usagetype", "valueRegex": "/^[A-Z0-9]*-Endpoint-Hour$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSNetworkFirewall", "Firewall", region, attribute_filters
+            "AWSNetworkFirewall", "AWS Firewall", region, attribute_filters
         )
 
 
@@ -1908,13 +2004,15 @@ class Route53ResolverQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_resolver_endpoint_query(properties: Dict[str, Any]) -> str:
-        # Route53 Resolver is a global service, so no region filter needed
+        region = properties.get("Region", "us-east-1")
+        
+        # Route53 Resolver Endpoint uses AmazonRoute53 service and DNS Query product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "ResolverEndpoint"}
+            {"key": "usagetype", "valueRegex": "/ResolverNetworkInterface$/"}
         ]
         
-        return QueryBuilder._build_global_query(
-            "AmazonRoute53", "Resolver Endpoint", attribute_filters
+        return QueryBuilder._build_base_query(
+            "AmazonRoute53", "DNS Query", region, attribute_filters
         )
 
 
