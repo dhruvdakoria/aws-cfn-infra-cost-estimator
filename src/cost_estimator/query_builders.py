@@ -385,10 +385,11 @@ class CloudWatchQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_dashboard_query(properties: Dict[str, Any]) -> str:
-        # CloudWatch Dashboard uses AmazonCloudWatch service and Dashboard product family per Go file
-        # The Go file shows no Region field in ProductFilter, so it's a global service
+        # CloudWatch Dashboard uses AmazonCloudWatch service and Dashboard product family
+        # Use regex to match dashboard usage types and ensure we get monthly pricing
         attribute_filters = [
-            {"key": "usagetype", "value": "DashboardsUsageHour"}
+            {"key": "usagetype", "valueRegex": "/Dashboard/"},
+            {"key": "operation", "value": "CreateDashboard"}
         ]
         
         return QueryBuilder._build_global_query(

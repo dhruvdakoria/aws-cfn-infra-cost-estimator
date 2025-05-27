@@ -41,29 +41,21 @@ class CostReportFormatter:
             if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown"):
                 tier_breakdown = rc.metadata["tier_breakdown"]
                 
-                # Main resource row
+                # Main resource row - show full details
                 table_data.append([
                     f"📊 {resource_type}",
-                    rc.resource_id[:15] + "..." if len(rc.resource_id) > 15 else rc.resource_id,
-                    "Usage-based",
-                    "Monthly cost depends on usage"
+                    rc.resource_id,
+                    "Usage-based (Tiered)",
+                    f"Tiered pricing with {tier_breakdown['total_tiers']} tiers - see detailed breakdown below"
                 ])
                 
-                # Add tier sub-rows (like Infracost does)
-                for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                # Add tier sub-rows showing all tiers for full transparency
+                for tier in tier_breakdown["tiers"]:
                     table_data.append([
                         f"├─ {tier['description']}",
                         "",
                         tier['price'],
                         "Monthly cost depends on usage"
-                    ])
-                
-                if tier_breakdown["total_tiers"] > 3:
-                    table_data.append([
-                        f"└─ ... and {tier_breakdown['total_tiers'] - 3} more tiers",
-                        "",
-                        "Varies",
-                        "See detailed breakdown below"
                     ])
                 
             else:
@@ -75,26 +67,56 @@ class CostReportFormatter:
                 elif rc.pricing_model == "usage_based":
                     emoji = "📊"
                     cost_display = "Usage-based"
-                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Pay per use"
+                    if rc.pricing_details:
+                        pricing_info = f"{rc.pricing_details} | Monthly cost varies based on actual usage"
+                    else:
+                        pricing_info = "Pay per use - monthly cost depends on actual usage patterns and volume"
                 elif rc.monthly_cost > 0:
                     emoji = "💰"
                     cost_display = f"${rc.monthly_cost:.2f}/month"
-                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Fixed monthly cost"
+                    if rc.pricing_details:
+                        pricing_info = f"{rc.pricing_details} | Fixed predictable monthly charge"
+                    else:
+                        pricing_info = f"Fixed monthly cost of ${rc.monthly_cost:.2f} - predictable billing"
                 else:
                     emoji = "❓"
                     cost_display = "Unknown"
-                    pricing_info = "Pricing information not available"
+                    pricing_info = "Pricing information not available - please check AWS pricing documentation"
                 
                 table_data.append([
                     f"{emoji} {resource_type}",
-                    rc.resource_id[:15] + "..." if len(rc.resource_id) > 15 else rc.resource_id,
+                    rc.resource_id,  # Show full resource ID
                     cost_display,
-                    pricing_info
+                    pricing_info  # Show full pricing info
                 ])
         
+        # Create an improved table format that handles long content properly
         headers = ["🏗️ Resource Type", "🆔 ID", "📅 Monthly Cost", "💡 Pricing Info"]
         
-        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 60])
+        # Process the data to handle long content and tiered pricing
+        processed_data = []
+        for row in table_data:
+            resource_type = str(row[0])
+            resource_id = str(row[1]) if row[1] else ""
+            monthly_cost = str(row[2])
+            pricing_details = str(row[3])
+            
+            # For tier rows, format them as sub-items
+            if resource_type.startswith("├─") or resource_type.startswith("└─"):
+                tier_info = resource_type
+                if row[2]:  # If there's a price
+                    tier_info += f" → {monthly_cost}"
+                processed_data.append([tier_info, "", "", ""])
+            else:
+                # For main resource rows, format with line breaks for long content
+                if len(pricing_details) > 80:
+                    import textwrap
+                    wrapped_details = textwrap.fill(pricing_details, width=80, break_long_words=False)
+                    pricing_details = wrapped_details
+                
+                processed_data.append([resource_type, resource_id, monthly_cost, pricing_details])
+        
+        table_output = tabulate(processed_data, headers=headers, tablefmt="grid", stralign="left")
         
         # Add summary section
         summary_lines = []
@@ -143,8 +165,8 @@ class CostReportFormatter:
             table_data.append([
                 f"{emoji} {diff.change_type}",
                 resource_type,
-                diff.logical_id[:15] + "..." if len(diff.logical_id) > 15 else diff.logical_id,
-                "\n".join(property_changes[:3]) if property_changes else "No changes"  # Limit to 3 changes
+                diff.logical_id,  # Show full logical ID
+                "\n".join(property_changes) if property_changes else "No changes"  # Show all changes
             ])
         
         headers = ["🔄 Change", "🏗️ Type", "🆔 ID", "📝 Changes"]
@@ -306,33 +328,25 @@ class CostReportFormatter:
             if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown"):
                 tier_breakdown = rc.metadata["tier_breakdown"]
                 
-                # Main resource row
+                # Main resource row - show full resource ID and indicate tiered pricing
                 table_data.append([
                     f"📊 {resource_type}",
-                    rc.resource_id[:20] + "..." if len(rc.resource_id) > 20 else rc.resource_id,
-                    "Usage-based",
-                    "Monthly cost depends on usage"
+                    rc.resource_id,
+                    "Usage-based (Tiered)",
+                    f"Tiered pricing with {tier_breakdown['total_tiers']} tiers - see detailed breakdown below"
                 ])
                 
-                # Add tier sub-rows (like Infracost does)
-                for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                # Add tier sub-rows showing all tiers for full transparency
+                for tier in tier_breakdown["tiers"]:
                     table_data.append([
                         f"├─ {tier['description']}",
                         "",
                         tier['price'],
                         "Monthly cost depends on usage"
                     ])
-                
-                if tier_breakdown["total_tiers"] > 3:
-                    table_data.append([
-                        f"└─ ... and {tier_breakdown['total_tiers'] - 3} more tiers",
-                        "",
-                        "Varies",
-                        "See detailed breakdown below"
-                    ])
                     
             else:
-                # Regular resource formatting
+                # Regular resource formatting - show full details without truncation
                 if rc.pricing_model == "free":
                     cost_display = "Free"
                     emoji = "🆓"
@@ -340,55 +354,66 @@ class CostReportFormatter:
                 elif rc.pricing_model == "usage_based":
                     cost_display = "Usage-based"
                     emoji = "📊"
-                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Pay per use"
+                    # Show full pricing details without truncation and add helpful context
+                    if rc.pricing_details:
+                        pricing_info = f"{rc.pricing_details} | Monthly cost varies based on actual usage"
+                    else:
+                        pricing_info = "Pay per use - monthly cost depends on actual usage patterns and volume"
                 elif rc.monthly_cost > 0:
                     cost_display = f"${rc.monthly_cost:.2f}/month"
                     emoji = "💰"
-                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Fixed monthly cost"
+                    # Show full pricing details without truncation and add helpful context
+                    if rc.pricing_details:
+                        pricing_info = f"{rc.pricing_details} | Fixed predictable monthly charge"
+                    else:
+                        pricing_info = f"Fixed monthly cost of ${rc.monthly_cost:.2f} - predictable billing"
                 else:
                     cost_display = "Unknown"
                     emoji = "❓"
-                    pricing_info = "Pricing information not available"
+                    pricing_info = "Pricing information not available - please check AWS pricing documentation"
                 
                 table_data.append([
                     f"{emoji} {resource_type}",
-                    rc.resource_id[:20] + "..." if len(rc.resource_id) > 20 else rc.resource_id,
+                    rc.resource_id,  # Show full resource ID
                     cost_display,
-                    pricing_info
+                    pricing_info  # Show full pricing info
                 ])
         
+        # Create an improved table format that handles long content properly
+        # by wrapping long text within table cells and showing tiered pricing inline
         headers = ["Resource Type", "Resource ID", "Monthly Cost", "Pricing Details"]
-        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 60])
+        
+        # Process the data to handle long content and tiered pricing
+        processed_data = []
+        for row in table_data:
+            resource_type = str(row[0])
+            resource_id = str(row[1]) if row[1] else ""
+            monthly_cost = str(row[2])
+            pricing_details = str(row[3])
+            
+            # For tier rows, format them as sub-items in the pricing details
+            if resource_type.startswith("├─") or resource_type.startswith("└─"):
+                tier_info = resource_type
+                if row[2]:  # If there's a price
+                    tier_info += f" → {monthly_cost}"
+                processed_data.append([tier_info, "", "", ""])
+            else:
+                # For main resource rows, format with line breaks for long content
+                # Break long pricing details into multiple lines if needed
+                if len(pricing_details) > 80:
+                    # Split at logical points (commas, pipes, etc.)
+                    import textwrap
+                    wrapped_details = textwrap.fill(pricing_details, width=80, break_long_words=False)
+                    pricing_details = wrapped_details
+                
+                processed_data.append([resource_type, resource_id, monthly_cost, pricing_details])
+        
+        # Use tabulate with a format that handles multi-line content well
+        table_output = tabulate(processed_data, headers=headers, tablefmt="grid", stralign="left")
         report.append(table_output)
         
-        # Detailed pricing information for tiered resources
-        tiered_resources = [rc for rc in resource_costs if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown")]
-        if tiered_resources:
-            report.append("")
-            report.append("## 📊 Detailed Tiered Pricing Information")
-            report.append("Complete pricing tiers for usage-based resources:")
-            report.append("")
-            for rc in tiered_resources:
-                resource_type = rc.resource_type.replace("AWS::", "")
-                tier_breakdown = rc.metadata["tier_breakdown"]
-                
-                report.append(f"### {resource_type} ({rc.resource_id})")
-                report.append(f"**{tier_breakdown['summary']}**")
-                report.append("")
-                
-                # Show all tiers in a table format
-                tier_table_data = []
-                for tier in tier_breakdown["tiers"]:
-                    tier_table_data.append([
-                        f"Tier {tier['tier']}",
-                        tier['description'],
-                        tier['price']
-                    ])
-                
-                tier_headers = ["Tier", "Usage Range", "Price"]
-                tier_table = tabulate(tier_table_data, headers=tier_headers, tablefmt="grid", stralign="left")
-                report.append(tier_table)
-                report.append("")
+        # Removed redundant "Detailed Tiered Pricing Information" section since
+        # all tier details are already shown inline in the main table above
         
         # Add footer notes
         report.append("## 📝 Notes")
@@ -488,29 +513,21 @@ class CostReportFormatter:
                 if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown"):
                     tier_breakdown = rc.metadata["tier_breakdown"]
                     
-                    # Main resource row
+                    # Main resource row - show full details
                     table_data.append([
                         f"📊 {resource_type}",
-                        rc.resource_id[:18] + "..." if len(rc.resource_id) > 18 else rc.resource_id,
-                        "Usage-based",
-                        "Monthly cost depends on usage"
+                        rc.resource_id,
+                        "Usage-based (Tiered)",
+                        f"Tiered pricing with {tier_breakdown['total_tiers']} tiers - see detailed breakdown below"
                     ])
                     
-                    # Add tier sub-rows (like Infracost does)
-                    for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                    # Add tier sub-rows showing all tiers for full transparency
+                    for tier in tier_breakdown["tiers"]:
                         table_data.append([
                             f"├─ {tier['description']}",
                             "",
                             tier['price'],
                             "Monthly cost depends on usage"
-                        ])
-                    
-                    if tier_breakdown["total_tiers"] > 3:
-                        table_data.append([
-                            f"└─ ... and {tier_breakdown['total_tiers'] - 3} more tiers",
-                            "",
-                            "Varies",
-                            "See detailed breakdown below"
                         ])
                         
                 else:
@@ -522,57 +539,62 @@ class CostReportFormatter:
                     elif rc.pricing_model == "usage_based":
                         cost_display = "Usage-based"
                         emoji = "📊"
-                        pricing_info = rc.pricing_details[:50] + "..." if rc.pricing_details and len(rc.pricing_details) > 50 else rc.pricing_details or "Pay per use"
+                        if rc.pricing_details:
+                            pricing_info = f"{rc.pricing_details} | Monthly cost varies based on actual usage"
+                        else:
+                            pricing_info = "Pay per use - monthly cost depends on actual usage patterns and volume"
                     elif rc.monthly_cost > 0:
                         cost_display = f"${rc.monthly_cost:.2f}/month"
                         emoji = "💰"
-                        pricing_info = rc.pricing_details[:50] + "..." if rc.pricing_details and len(rc.pricing_details) > 50 else rc.pricing_details or "Fixed monthly cost"
+                        if rc.pricing_details:
+                            pricing_info = f"{rc.pricing_details} | Fixed predictable monthly charge"
+                        else:
+                            pricing_info = f"Fixed monthly cost of ${rc.monthly_cost:.2f} - predictable billing"
                     else:
                         cost_display = "Unknown"
                         emoji = "❓"
-                        pricing_info = "Pricing information not available"
+                        pricing_info = "Pricing information not available - please check AWS pricing documentation"
                     
                     table_data.append([
                         f"{emoji} {resource_type}",
-                        rc.resource_id[:18] + "..." if len(rc.resource_id) > 18 else rc.resource_id,
+                        rc.resource_id,  # Show full resource ID
                         cost_display,
-                        pricing_info
+                        pricing_info  # Show full pricing info
                     ])
             
+            # Create an improved table format that handles long content properly
             headers = ["Resource Type", "Resource ID", "Monthly Cost", "Pricing Details"]
-            table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 50])
+            
+            # Process the data to handle long content and tiered pricing
+            processed_data = []
+            for row in table_data:
+                resource_type = str(row[0])
+                resource_id = str(row[1]) if row[1] else ""
+                monthly_cost = str(row[2])
+                pricing_details = str(row[3])
+                
+                # For tier rows, format them as sub-items
+                if resource_type.startswith("├─") or resource_type.startswith("└─"):
+                    tier_info = resource_type
+                    if row[2]:  # If there's a price
+                        tier_info += f" → {monthly_cost}"
+                    processed_data.append([tier_info, "", "", ""])
+                else:
+                    # For main resource rows, format with line breaks for long content
+                    if len(pricing_details) > 80:
+                        import textwrap
+                        wrapped_details = textwrap.fill(pricing_details, width=80, break_long_words=False)
+                        pricing_details = wrapped_details
+                    
+                    processed_data.append([resource_type, resource_id, monthly_cost, pricing_details])
+            
+            table_output = tabulate(processed_data, headers=headers, tablefmt="grid", stralign="left")
             report.append(table_output)
         else:
             report.append("No resources found in new template.")
         
-        # Detailed pricing information for tiered resources
-        tiered_resources = [rc for rc in new_costs if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown")]
-        if tiered_resources:
-            report.append("")
-            report.append("## 📊 Detailed Tiered Pricing Information")
-            report.append("Complete pricing tiers for usage-based resources:")
-            report.append("")
-            for rc in tiered_resources:
-                resource_type = rc.resource_type.replace("AWS::", "")
-                tier_breakdown = rc.metadata["tier_breakdown"]
-                
-                report.append(f"### {resource_type} ({rc.resource_id})")
-                report.append(f"**{tier_breakdown['summary']}**")
-                report.append("")
-                
-                # Show all tiers in a table format
-                tier_table_data = []
-                for tier in tier_breakdown["tiers"]:
-                    tier_table_data.append([
-                        f"Tier {tier['tier']}",
-                        tier['description'],
-                        tier['price']
-                    ])
-                
-                tier_headers = ["Tier", "Usage Range", "Price"]
-                tier_table = tabulate(tier_table_data, headers=tier_headers, tablefmt="grid", stralign="left")
-                report.append(tier_table)
-                report.append("")
+        # Removed redundant "Detailed Tiered Pricing Information" section since
+        # all tier details are already shown inline in the main table above
         
         # Add footer notes
         report.append("## 📝 Notes")
