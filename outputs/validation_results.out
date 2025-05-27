@@ -1,0 +1,42 @@
+🚀 Starting comprehensive validation tests...
+
+🧪 Testing utility functions...
+✅ format_usage_amount works correctly
+✅ format_tier_description works correctly
+✅ format_price_per_unit works correctly
+✅ format_currency works correctly
+✅ clean_resource_name works correctly
+✅ get_resource_category works correctly
+✅ validate_pricing_data works correctly
+✅ calculate_monthly_cost works correctly
+🎉 All utility functions passed!
+
+🧪 Testing S3 pricing fix...
+✅ S3 now returns tiered pricing!
+   📊 Found 3 pricing tiers
+   💰 Gb-Mo (first 51K) → $0.02 per GB-Mo
+   💰 Gb-Mo (next 460K) → $0.02 per GB-Mo
+   💰 Gb-Mo (next Inf) → $0.02 per GB-Mo
+
+🧪 Testing error handling...
+✅ Properly handles invalid resource types
+✅ Handles missing properties gracefully
+
+🧪 Testing comprehensive template...
+❌ Error testing comprehensive template: __init__() missing 1 required positional argument: 'template_content'
+
+🧪 Testing regional pricing...
+🌍 EC2 t3.micro in us-east-1: $7.59/month
+🌍 EC2 t3.micro in ca-central-1: $8.47/month
+🌍 EC2 t3.micro in eu-west-1: $8.32/month
+
+🧪 Testing performance improvements...
+⚡ AWS::EC2::Instance: $7.59/month
+⚡ AWS::S3::Bucket: $0.00/month
+⚡ AWS::RDS::DBInstance: $24.82/month
+⚡ AWS::Lambda::Function: $0.00/month
+⚡ AWS::DynamoDB::Table: $0.00/month
+⏱️  Total time: 0.92 seconds
+📈 Average per resource: 0.18 seconds
+
+🎉 Validation tests completed!

@@ -942,10 +942,10 @@ PRICING_MODELS = {
     },
     
     "AWS::KMS::Key": {
-        "model": "usage_based",
-        "base_cost": 0.0,
-        "details": "Customer managed keys with per-request charges",
-        "unit": "per key + per request"
+        "model": "fixed",
+        "base_cost": 1.00,
+        "details": "$1.00 per key per month + $0.03 per 10,000 requests",
+        "unit": "per key per month"
     },
     
     "AWS::ApiGateway::RestApi": {
@@ -970,9 +970,9 @@ PRICING_MODELS = {
     },
     
     "AWS::CloudWatch::Dashboard": {
-        "model": "usage_based",
-        "base_cost": 0.0,
-        "details": "Dashboard pricing with free tier",
+        "model": "fixed",
+        "base_cost": 3.00,
+        "details": "$3.00 per dashboard per month",
         "unit": "per dashboard per month"
     },
     
@@ -984,10 +984,10 @@ PRICING_MODELS = {
     },
     
     "AWS::Route53::HostedZone": {
-        "model": "usage_based",
-        "base_cost": 0.0,
-        "details": "Hosted zone and query pricing",
-        "unit": "per zone + per query"
+        "model": "fixed",
+        "base_cost": 0.50,
+        "details": "$0.50 per hosted zone per month + $0.40 per million queries",
+        "unit": "per zone per month"
     },
     
     "AWS::Route53::HealthCheck": {
@@ -1007,7 +1007,7 @@ PRICING_MODELS = {
     "AWS::EKS::Cluster": {
         "model": "fixed",
         "base_cost": 73.0,  # $0.10 per hour = ~$73/month
-        "details": "EKS cluster: $0.10 per hour ($73/month) + worker node costs",
+        "details": "$0.10 per hour ($73/month) + worker node costs",
         "unit": "per cluster per hour"
     },
     

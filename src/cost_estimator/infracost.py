@@ -13,6 +13,92 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+def format_usage_amount(amount_str: str) -> str:
+    """Format usage amounts in human-readable format (like Infracost: 333M, 1B, etc.)"""
+    try:
+        amount = int(amount_str)
+        if amount >= 1_000_000_000:
+            return f"{amount // 1_000_000_000}B"
+        elif amount >= 1_000_000:
+            return f"{amount // 1_000_000}M"
+        elif amount >= 1_000:
+            return f"{amount // 1_000}K"
+        else:
+            return str(amount)
+    except (ValueError, TypeError):
+        return amount_str
+
+def format_tier_description(tier_index: int, start_amount: str, end_amount: str, unit: str) -> str:
+    """Format tier description in Infracost style."""
+    start_formatted = format_usage_amount(start_amount)
+    
+    if end_amount == "999999999999" or end_amount == "∞":
+        if tier_index == 0:
+            return f"first {start_formatted}"
+        else:
+            return f"over {start_formatted}"
+    else:
+        end_formatted = format_usage_amount(end_amount)
+        if tier_index == 0:
+            return f"first {end_formatted}"
+        else:
+            # Calculate the range for this tier
+            try:
+                start_int = int(start_amount)
+                end_int = int(end_amount)
+                range_amount = end_int - start_int
+                range_formatted = format_usage_amount(str(range_amount))
+                return f"next {range_formatted}"
+            except (ValueError, TypeError):
+                return f"next {end_formatted}"
+
+def format_price_per_unit(price_usd: str, unit: str) -> str:
+    """Format price per unit in Infracost style."""
+    try:
+        price = float(price_usd)
+        # Convert to per-million for common units like requests
+        if unit.lower() in ["requests", "request"] and price < 0.01:
+            return f"${price * 1_000_000:.2f} per 1M {unit.lower()}"
+        elif price < 0.000001:
+            return f"${price:.8f} per {unit}"
+        elif price < 0.001:
+            return f"${price:.6f} per {unit}"
+        else:
+            return f"${price:.2f} per {unit}"
+    except (ValueError, TypeError):
+        return f"${price_usd} per {unit}"
+
+def create_tiered_pricing_breakdown(prices: List[Dict]) -> Dict[str, Any]:
+    """Create a detailed tiered pricing breakdown in Infracost style."""
+    tier_breakdown = []
+    total_tiers = len(prices)
+    
+    for i, price in enumerate(prices):
+        start_amount = price.get("startUsageAmount", "0")
+        end_amount = price.get("endUsageAmount", "∞")
+        price_usd = price.get("USD", "0")
+        unit = price.get("unit", "requests")
+        
+        # Format tier description
+        tier_desc = format_tier_description(i, start_amount, end_amount, unit)
+        price_desc = format_price_per_unit(price_usd, unit)
+        
+        tier_breakdown.append({
+            "tier": i + 1,
+            "description": f"{unit.title()} ({tier_desc})",
+            "price": price_desc,
+            "start_amount": start_amount,
+            "end_amount": end_amount,
+            "price_usd": float(price_usd),
+            "unit": unit
+        })
+    
+    return {
+        "total_tiers": total_tiers,
+        "tiers": tier_breakdown,
+        "summary": f"Tiered pricing with {total_tiers} tiers"
+    }
+
 class InfracostEstimator(CostEstimator):
     """Cost estimator using Infracost GraphQL API."""
     
@@ -99,42 +185,40 @@ class InfracostEstimator(CostEstimator):
             has_tiered_pricing = len(prices) > 1 and any(p.get("startUsageAmount") for p in prices)
             
             if has_tiered_pricing:
-                # For tiered pricing, create detailed pricing information
-                tier_details = []
-                for i, price in enumerate(prices):
-                    start_amount = price.get("startUsageAmount", "0")
-                    end_amount = price.get("endUsageAmount", "∞")
-                    price_usd = price.get("USD", "0")
-                    unit = price.get("unit", "requests")
-                    
-                    if end_amount == "999999999999":
-                        end_amount = "∞"
-                    
-                    tier_details.append(f"Tier {i+1}: {start_amount}-{end_amount} {unit} → ${price_usd} per {unit}")
+                # Create detailed tiered pricing breakdown using Infracost style
+                tier_breakdown = create_tiered_pricing_breakdown(prices)
                 
-                pricing_details = f"Tiered pricing with {len(prices)} tiers - actual cost depends on usage volume"
-                if tier_details:
-                    pricing_details += f"\n{'; '.join(tier_details[:3])}"  # Show first 3 tiers
-                    if len(tier_details) > 3:
-                        pricing_details += f" + {len(tier_details) - 3} more tiers"
+                # Create summary for display
+                first_tier = tier_breakdown["tiers"][0]
+                pricing_summary = f"Tiered pricing with {tier_breakdown['total_tiers']} tiers"
+                
+                # Create detailed pricing information
+                tier_details_formatted = []
+                for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                    tier_details_formatted.append(f"{tier['description']} → {tier['price']}")
+                
+                if tier_breakdown['total_tiers'] > 3:
+                    tier_details_formatted.append(f"+ {tier_breakdown['total_tiers'] - 3} more tiers")
+                
+                pricing_details = f"{pricing_summary}\n{'; '.join(tier_details_formatted)}"
                 
                 # Use first tier price for base calculation
-                first_tier_price = float(prices[0].get("USD", 0))
+                first_tier_price = tier_breakdown["tiers"][0]["price_usd"]
                 
                 return ResourceCost(
                     resource_type=resource_type,
                     resource_id=resource_properties.get("id", "unknown"),
-                    hourly_cost=first_tier_price,
-                    monthly_cost=first_tier_price * 730,  # Base calculation
+                    hourly_cost=0.0,  # Don't show hourly for tiered pricing
+                    monthly_cost=0.0,  # Don't show fixed monthly for tiered pricing
                     currency="USD",
                     usage_type="tiered_pricing",
-                    description="Cost varies by usage tier - actual cost depends on usage volume",
+                    description="Monthly cost depends on usage",
                     metadata={
-                        "pricing_tiers": len(prices),
+                        "pricing_tiers": tier_breakdown["total_tiers"],
                         "first_tier_price": first_tier_price,
                         "has_tiered_pricing": True,
-                        "all_tier_prices": [float(p.get("USD", 0)) for p in prices],
-                        "tier_details": tier_details
+                        "tier_breakdown": tier_breakdown,
+                        "tier_details": [f"{t['description']} → {t['price']}" for t in tier_breakdown["tiers"]]
                     },
                     pricing_model="usage_based",
                     pricing_details=pricing_details

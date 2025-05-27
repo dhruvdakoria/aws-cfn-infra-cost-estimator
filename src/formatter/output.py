@@ -13,90 +13,100 @@ class CostReportFormatter:
             return "📋 No resources to display."
         
         # Calculate totals
-        total_hourly = sum(rc.hourly_cost for rc in resource_costs)
-        total_monthly = sum(rc.monthly_cost for rc in resource_costs)
+        total_hourly = sum(rc.hourly_cost for rc in resource_costs if rc.pricing_model != "usage_based")
+        total_monthly = sum(rc.monthly_cost for rc in resource_costs if rc.pricing_model != "usage_based")
         currency = resource_costs[0].currency if resource_costs else "USD"
         
-        # Create table data
+        # Count resources by type
+        usage_based_count = len([rc for rc in resource_costs if rc.pricing_model == "usage_based"])
+        free_count = len([rc for rc in resource_costs if rc.pricing_model == "free"])
+        paid_count = len([rc for rc in resource_costs if rc.pricing_model not in ["free", "usage_based"] and rc.monthly_cost > 0])
+        
+        # Create table data with Infracost-style formatting
         table_data = []
-        for rc in resource_costs:
-            # Add emoji based on pricing model and cost
-            if rc.pricing_model == "free":
-                emoji = "🆓"
-                cost_display = "$0.00"
-                pricing_info = "Free"
-                hourly_display = "$0.00"
-            elif rc.pricing_model == "usage_based":
-                if rc.monthly_cost > 0:
-                    emoji = "💰"
-                    cost_display = f"${rc.monthly_cost:.2f}"
-                    pricing_info = "Usage-based"
-                    hourly_display = f"${rc.hourly_cost:.2f}" if rc.hourly_cost > 0 else "Usage-based"
-                else:
-                    emoji = "📊"
-                    cost_display = "Usage-based"
-                    pricing_info = "Pay per use"
-                    hourly_display = "Usage-based"
-            elif rc.hourly_cost == 0.0:
-                emoji = "💤"
-                cost_display = "$0.00"
-                pricing_info = "Unknown"
-                hourly_display = "$0.00"
-            elif rc.hourly_cost < 0.01:
-                emoji = "💰"
-                cost_display = f"${rc.monthly_cost:.2f}"
-                pricing_info = "Low cost"
-                hourly_display = f"${rc.hourly_cost:.2f}"
-            elif rc.hourly_cost < 0.1:
-                emoji = "💵"
-                cost_display = f"${rc.monthly_cost:.2f}"
-                pricing_info = "Moderate cost"
-                hourly_display = f"${rc.hourly_cost:.2f}"
-            else:
-                emoji = "💸"
-                cost_display = f"${rc.monthly_cost:.2f}"
-                pricing_info = "High cost"
-                hourly_display = f"${rc.hourly_cost:.2f}"
-            
-            # Shorten resource type for better display
+        
+        # Sort resources: paid first, then usage-based, then free
+        sorted_costs = sorted(resource_costs, key=lambda x: (
+            0 if x.pricing_model not in ["free", "usage_based"] and x.monthly_cost > 0 else
+            1 if x.pricing_model == "usage_based" else
+            2 if x.pricing_model == "free" else
+            3
+        ))
+        
+        for rc in sorted_costs:
+            # Format resource type (remove AWS:: prefix)
             resource_type = rc.resource_type.replace("AWS::", "").replace("::", ":")
             
-            # Use pricing details if available for usage-based resources
-            if rc.pricing_model == "usage_based" and rc.pricing_details:
-                pricing_info = rc.pricing_details[:60] + "..." if len(rc.pricing_details) > 60 else rc.pricing_details
-            
-            table_data.append([
-                f"{emoji} {resource_type}",
-                rc.resource_id[:15] + "..." if len(rc.resource_id) > 15 else rc.resource_id,
-                hourly_display,
-                cost_display,
-                pricing_info
-            ])
+            # Handle tiered pricing resources with sub-breakdown
+            if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown"):
+                tier_breakdown = rc.metadata["tier_breakdown"]
+                
+                # Main resource row
+                table_data.append([
+                    f"📊 {resource_type}",
+                    rc.resource_id[:15] + "..." if len(rc.resource_id) > 15 else rc.resource_id,
+                    "Usage-based",
+                    "Monthly cost depends on usage"
+                ])
+                
+                # Add tier sub-rows (like Infracost does)
+                for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                    table_data.append([
+                        f"├─ {tier['description']}",
+                        "",
+                        tier['price'],
+                        "Monthly cost depends on usage"
+                    ])
+                
+                if tier_breakdown["total_tiers"] > 3:
+                    table_data.append([
+                        f"└─ ... and {tier_breakdown['total_tiers'] - 3} more tiers",
+                        "",
+                        "Varies",
+                        "See detailed breakdown below"
+                    ])
+                
+            else:
+                # Regular resource formatting
+                if rc.pricing_model == "free":
+                    emoji = "🆓"
+                    cost_display = "Free"
+                    pricing_info = "This resource is free to use"
+                elif rc.pricing_model == "usage_based":
+                    emoji = "📊"
+                    cost_display = "Usage-based"
+                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Pay per use"
+                elif rc.monthly_cost > 0:
+                    emoji = "💰"
+                    cost_display = f"${rc.monthly_cost:.2f}/month"
+                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Fixed monthly cost"
+                else:
+                    emoji = "❓"
+                    cost_display = "Unknown"
+                    pricing_info = "Pricing information not available"
+                
+                table_data.append([
+                    f"{emoji} {resource_type}",
+                    rc.resource_id[:15] + "..." if len(rc.resource_id) > 15 else rc.resource_id,
+                    cost_display,
+                    pricing_info
+                ])
         
-        # Add total row
-        table_data.append([
-            "🔢 TOTAL",
-            "",
-            f"${total_hourly:.2f}",
-            f"${total_monthly:.2f}",
-            ""
-        ])
+        headers = ["🏗️ Resource Type", "🆔 ID", "📅 Monthly Cost", "💡 Pricing Info"]
         
-        headers = ["🏗️ Resource Type", "🆔 ID", "⏰ Hourly", "📅 Monthly", "💡 Pricing Info"]
+        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 60])
         
-        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, None, 60])
+        # Add summary section
+        summary_lines = []
+        summary_lines.append(f"💰 **Fixed Monthly Cost**: ${total_monthly:.2f}")
+        summary_lines.append(f"⏰ **Fixed Hourly Cost**: ${total_hourly:.4f}")
+        summary_lines.append(f"📊 **Usage-Based Resources**: {usage_based_count} (costs depend on usage)")
+        summary_lines.append(f"🆓 **Free Resources**: {free_count}")
+        summary_lines.append(f"💵 **Paid Resources**: {paid_count}")
         
-        # Add detailed pricing information for all resources with pricing details
-        resources_with_details = [rc for rc in resource_costs if rc.pricing_details and rc.pricing_details != "No details available"]
-        if resources_with_details:
-            table_output += "\n\n📊 **Detailed Pricing Information:**\n"
-            table_output += "=" * 100 + "\n"
-            for rc in resources_with_details:
-                resource_type = rc.resource_type.replace("AWS::", "")
-                table_output += f"• **{resource_type}** ({rc.resource_id}):\n"
-                table_output += f"  {rc.pricing_details}\n\n"
+        summary_output = "\n".join(summary_lines)
         
-        return table_output
+        return f"{summary_output}\n\n{table_output}"
     
     @staticmethod
     def format_diff_summary(resource_diffs: List[ResourceDiff]) -> str:
@@ -292,74 +302,99 @@ class CostReportFormatter:
             # Format resource type
             resource_type = rc.resource_type.replace("AWS::", "")
             
-            # Format cost display
-            if rc.pricing_model == "free":
-                cost_display = "Free"
-                emoji = "🆓"
-            elif rc.pricing_model == "usage_based":
-                cost_display = "Usage-based"
-                emoji = "📊"
-            elif rc.monthly_cost > 0:
-                cost_display = f"${rc.monthly_cost:.2f}/month"
-                emoji = "💰"
+            # Handle tiered pricing resources with sub-breakdown
+            if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown"):
+                tier_breakdown = rc.metadata["tier_breakdown"]
+                
+                # Main resource row
+                table_data.append([
+                    f"📊 {resource_type}",
+                    rc.resource_id[:20] + "..." if len(rc.resource_id) > 20 else rc.resource_id,
+                    "Usage-based",
+                    "Monthly cost depends on usage"
+                ])
+                
+                # Add tier sub-rows (like Infracost does)
+                for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                    table_data.append([
+                        f"├─ {tier['description']}",
+                        "",
+                        tier['price'],
+                        "Monthly cost depends on usage"
+                    ])
+                
+                if tier_breakdown["total_tiers"] > 3:
+                    table_data.append([
+                        f"└─ ... and {tier_breakdown['total_tiers'] - 3} more tiers",
+                        "",
+                        "Varies",
+                        "See detailed breakdown below"
+                    ])
+                    
             else:
-                cost_display = "Unknown"
-                emoji = "❓"
-            
-            # Format pricing details
-            pricing_info = rc.pricing_details if rc.pricing_details else "No details available"
-            
-            # Special handling for tiered pricing
-            if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_details"):
-                tier_count = rc.metadata.get("pricing_tiers", 0)
-                pricing_info = f"Tiered pricing with {tier_count} tiers - actual cost depends on usage volume"
-            
-            if len(pricing_info) > 80:
-                pricing_info = pricing_info[:77] + "..."
-            
-            table_data.append([
-                f"{emoji} {resource_type}",
-                rc.resource_id[:20] + "..." if len(rc.resource_id) > 20 else rc.resource_id,
-                cost_display,
-                pricing_info
-            ])
+                # Regular resource formatting
+                if rc.pricing_model == "free":
+                    cost_display = "Free"
+                    emoji = "🆓"
+                    pricing_info = "This resource is free to use"
+                elif rc.pricing_model == "usage_based":
+                    cost_display = "Usage-based"
+                    emoji = "📊"
+                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Pay per use"
+                elif rc.monthly_cost > 0:
+                    cost_display = f"${rc.monthly_cost:.2f}/month"
+                    emoji = "💰"
+                    pricing_info = rc.pricing_details[:60] + "..." if rc.pricing_details and len(rc.pricing_details) > 60 else rc.pricing_details or "Fixed monthly cost"
+                else:
+                    cost_display = "Unknown"
+                    emoji = "❓"
+                    pricing_info = "Pricing information not available"
+                
+                table_data.append([
+                    f"{emoji} {resource_type}",
+                    rc.resource_id[:20] + "..." if len(rc.resource_id) > 20 else rc.resource_id,
+                    cost_display,
+                    pricing_info
+                ])
         
         headers = ["Resource Type", "Resource ID", "Monthly Cost", "Pricing Details"]
-        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 80])
+        table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 60])
         report.append(table_output)
         
-        # Detailed pricing information section
-        resources_with_details = [rc for rc in resource_costs if rc.pricing_details and rc.pricing_details != "No details available"]
-        if resources_with_details:
+        # Detailed pricing information for tiered resources
+        tiered_resources = [rc for rc in resource_costs if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown")]
+        if tiered_resources:
             report.append("")
-            report.append("## 📊 Detailed Pricing Information")
-            report.append("Complete pricing details for all resources:")
+            report.append("## 📊 Detailed Tiered Pricing Information")
+            report.append("Complete pricing tiers for usage-based resources:")
             report.append("")
-            for rc in resources_with_details:
+            for rc in tiered_resources:
                 resource_type = rc.resource_type.replace("AWS::", "")
+                tier_breakdown = rc.metadata["tier_breakdown"]
+                
                 report.append(f"### {resource_type} ({rc.resource_id})")
+                report.append(f"**{tier_breakdown['summary']}**")
+                report.append("")
                 
-                # Show tier details for tiered pricing resources
-                if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_details"):
-                    tier_details = rc.metadata.get("tier_details", [])
-                    report.append(f"{rc.pricing_details}")
-                    if tier_details:
-                        report.append("")
-                        report.append("**Pricing Tiers:**")
-                        for tier in tier_details[:5]:  # Show first 5 tiers
-                            report.append(f"- {tier}")
-                        if len(tier_details) > 5:
-                            report.append(f"- ... and {len(tier_details) - 5} more tiers")
-                else:
-                    report.append(f"{rc.pricing_details}")
+                # Show all tiers in a table format
+                tier_table_data = []
+                for tier in tier_breakdown["tiers"]:
+                    tier_table_data.append([
+                        f"Tier {tier['tier']}",
+                        tier['description'],
+                        tier['price']
+                    ])
                 
+                tier_headers = ["Tier", "Usage Range", "Price"]
+                tier_table = tabulate(tier_table_data, headers=tier_headers, tablefmt="grid", stralign="left")
+                report.append(tier_table)
                 report.append("")
         
         # Add footer notes
-        report.append("")
         report.append("## 📝 Notes")
         report.append("• Fixed costs are predictable monthly charges")
         report.append("• Usage-based costs depend on actual resource utilization")
+        report.append("• Tiered pricing means cost per unit decreases with higher usage")
         report.append("• Free resources have no direct charges but may incur costs through usage")
         report.append("• Estimates are based on current AWS pricing and may vary")
         
@@ -372,10 +407,18 @@ class CostReportFormatter:
         resource_diffs: List[ResourceDiff]
     ) -> str:
         """Format a cost comparison table between old and new templates."""
-        # Calculate totals
+        # Calculate totals (exclude usage-based from fixed cost totals)
         old_total = sum(rc.monthly_cost for rc in old_costs if rc.pricing_model != "usage_based")
         new_total = sum(rc.monthly_cost for rc in new_costs if rc.pricing_model != "usage_based")
         cost_diff = new_total - old_total
+        
+        # Count resources by type for both old and new
+        old_usage_based = len([rc for rc in old_costs if rc.pricing_model == "usage_based"])
+        new_usage_based = len([rc for rc in new_costs if rc.pricing_model == "usage_based"])
+        old_free = len([rc for rc in old_costs if rc.pricing_model == "free"])
+        new_free = len([rc for rc in new_costs if rc.pricing_model == "free"])
+        old_paid = len([rc for rc in old_costs if rc.pricing_model not in ["free", "usage_based"] and rc.monthly_cost > 0])
+        new_paid = len([rc for rc in new_costs if rc.pricing_model not in ["free", "usage_based"] and rc.monthly_cost > 0])
         
         # Create header
         report = []
@@ -414,10 +457,22 @@ class CostReportFormatter:
             report.append(f"🔄 **Modified**: {modified} resources")
             report.append("")
         
-        # Detailed cost breakdown
+        # Resource type comparison
+        report.append("## 📊 Resource Type Comparison")
+        comparison_table = [
+            ["💰 Fixed Cost Resources", f"{old_paid}", f"{new_paid}", f"{new_paid - old_paid:+d}"],
+            ["📊 Usage-Based Resources", f"{old_usage_based}", f"{new_usage_based}", f"{new_usage_based - old_usage_based:+d}"],
+            ["🆓 Free Resources", f"{old_free}", f"{new_free}", f"{new_free - old_free:+d}"]
+        ]
+        comparison_headers = ["Resource Type", "Current", "New", "Change"]
+        comparison_output = tabulate(comparison_table, headers=comparison_headers, tablefmt="grid", stralign="center")
+        report.append(comparison_output)
+        report.append("")
+        
+        # Detailed cost breakdown with Infracost-style formatting
         report.append("## 📋 New Template Cost Breakdown")
         if new_costs:
-            # Create cost breakdown table
+            # Create cost breakdown table with tiered pricing support
             table_data = []
             sorted_costs = sorted(new_costs, key=lambda x: (
                 0 if x.pricing_model not in ["free", "usage_based"] and x.monthly_cost > 0 else
@@ -429,47 +484,102 @@ class CostReportFormatter:
             for rc in sorted_costs:
                 resource_type = rc.resource_type.replace("AWS::", "")
                 
-                if rc.pricing_model == "free":
-                    cost_display = "Free"
-                    emoji = "🆓"
-                elif rc.pricing_model == "usage_based":
-                    cost_display = "Usage-based"
-                    emoji = "📊"
-                elif rc.monthly_cost > 0:
-                    cost_display = f"${rc.monthly_cost:.2f}/month"
-                    emoji = "💰"
+                # Handle tiered pricing resources with sub-breakdown
+                if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown"):
+                    tier_breakdown = rc.metadata["tier_breakdown"]
+                    
+                    # Main resource row
+                    table_data.append([
+                        f"📊 {resource_type}",
+                        rc.resource_id[:18] + "..." if len(rc.resource_id) > 18 else rc.resource_id,
+                        "Usage-based",
+                        "Monthly cost depends on usage"
+                    ])
+                    
+                    # Add tier sub-rows (like Infracost does)
+                    for tier in tier_breakdown["tiers"][:3]:  # Show first 3 tiers
+                        table_data.append([
+                            f"├─ {tier['description']}",
+                            "",
+                            tier['price'],
+                            "Monthly cost depends on usage"
+                        ])
+                    
+                    if tier_breakdown["total_tiers"] > 3:
+                        table_data.append([
+                            f"└─ ... and {tier_breakdown['total_tiers'] - 3} more tiers",
+                            "",
+                            "Varies",
+                            "See detailed breakdown below"
+                        ])
+                        
                 else:
-                    cost_display = "Unknown"
-                    emoji = "❓"
-                
-                pricing_info = rc.pricing_details if rc.pricing_details else "No details available"
-                if len(pricing_info) > 60:
-                    pricing_info = pricing_info[:57] + "..."
-                
-                table_data.append([
-                    f"{emoji} {resource_type}",
-                    rc.resource_id[:18] + "..." if len(rc.resource_id) > 18 else rc.resource_id,
-                    cost_display,
-                    pricing_info
-                ])
+                    # Regular resource formatting
+                    if rc.pricing_model == "free":
+                        cost_display = "Free"
+                        emoji = "🆓"
+                        pricing_info = "This resource is free to use"
+                    elif rc.pricing_model == "usage_based":
+                        cost_display = "Usage-based"
+                        emoji = "📊"
+                        pricing_info = rc.pricing_details[:50] + "..." if rc.pricing_details and len(rc.pricing_details) > 50 else rc.pricing_details or "Pay per use"
+                    elif rc.monthly_cost > 0:
+                        cost_display = f"${rc.monthly_cost:.2f}/month"
+                        emoji = "💰"
+                        pricing_info = rc.pricing_details[:50] + "..." if rc.pricing_details and len(rc.pricing_details) > 50 else rc.pricing_details or "Fixed monthly cost"
+                    else:
+                        cost_display = "Unknown"
+                        emoji = "❓"
+                        pricing_info = "Pricing information not available"
+                    
+                    table_data.append([
+                        f"{emoji} {resource_type}",
+                        rc.resource_id[:18] + "..." if len(rc.resource_id) > 18 else rc.resource_id,
+                        cost_display,
+                        pricing_info
+                    ])
             
             headers = ["Resource Type", "Resource ID", "Monthly Cost", "Pricing Details"]
-            table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 60])
+            table_output = tabulate(table_data, headers=headers, tablefmt="grid", stralign="left", maxcolwidths=[None, None, None, 50])
             report.append(table_output)
         else:
             report.append("No resources found in new template.")
         
-        # Detailed pricing information
-        resources_with_details = [rc for rc in new_costs if rc.pricing_details and rc.pricing_details != "No details available"]
-        if resources_with_details:
+        # Detailed pricing information for tiered resources
+        tiered_resources = [rc for rc in new_costs if rc.usage_type == "tiered_pricing" and rc.metadata and rc.metadata.get("tier_breakdown")]
+        if tiered_resources:
             report.append("")
-            report.append("## 📊 Detailed Pricing Information")
-            report.append("Complete pricing details for all resources:")
+            report.append("## 📊 Detailed Tiered Pricing Information")
+            report.append("Complete pricing tiers for usage-based resources:")
             report.append("")
-            for rc in resources_with_details:
+            for rc in tiered_resources:
                 resource_type = rc.resource_type.replace("AWS::", "")
+                tier_breakdown = rc.metadata["tier_breakdown"]
+                
                 report.append(f"### {resource_type} ({rc.resource_id})")
-                report.append(f"{rc.pricing_details}")
+                report.append(f"**{tier_breakdown['summary']}**")
                 report.append("")
+                
+                # Show all tiers in a table format
+                tier_table_data = []
+                for tier in tier_breakdown["tiers"]:
+                    tier_table_data.append([
+                        f"Tier {tier['tier']}",
+                        tier['description'],
+                        tier['price']
+                    ])
+                
+                tier_headers = ["Tier", "Usage Range", "Price"]
+                tier_table = tabulate(tier_table_data, headers=tier_headers, tablefmt="grid", stralign="left")
+                report.append(tier_table)
+                report.append("")
+        
+        # Add footer notes
+        report.append("## 📝 Notes")
+        report.append("• Fixed costs are predictable monthly charges")
+        report.append("• Usage-based costs depend on actual resource utilization")
+        report.append("• Tiered pricing means cost per unit decreases with higher usage")
+        report.append("• Free resources have no direct charges but may incur costs through usage")
+        report.append("• Estimates are based on current AWS pricing and may vary")
         
         return "\n".join(report) 

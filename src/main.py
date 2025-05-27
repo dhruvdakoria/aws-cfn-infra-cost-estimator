@@ -16,7 +16,7 @@ from formatter.output import CostReportFormatter
 
 # Configure logging to be less verbose
 logging.basicConfig(
-    level=logging.WARNING,  # Changed from INFO to WARNING
+    level=logging.ERROR,  # Changed from WARNING to ERROR to reduce noise
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -104,6 +104,14 @@ class CostEstimator:
                 
             except Exception as e:
                 logger.error(f"Error getting cost for resource {resource.logical_id}: {str(e)}")
+                # Try to get fallback pricing if available
+                try:
+                    fallback_cost = self.infracost._get_fallback_pricing(resource.type, properties)
+                    if fallback_cost:
+                        logger.info(f"Using fallback pricing for {resource.logical_id}")
+                        costs.append(fallback_cost)
+                except:
+                    pass
                 continue
         
         return costs
