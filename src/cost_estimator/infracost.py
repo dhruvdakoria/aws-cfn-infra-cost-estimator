@@ -71,7 +71,7 @@ class InfracostEstimator(CostEstimator):
         
         # Add region to properties if not present
         if "Region" not in resource_properties:
-            resource_properties["Region"] = self.region
+            resource_properties["Region"] = "us-east-1"  # Default region
         
         # Add a unique ID for the resource if not present
         if "id" not in resource_properties:
@@ -128,7 +128,7 @@ class InfracostEstimator(CostEstimator):
                     monthly_cost=first_tier_price * 730,  # Base calculation
                     currency="USD",
                     usage_type="tiered_pricing",
-                    description="Cost varies by usage tier - use EnhancedCostCalculator for accurate estimates",
+                    description="Cost varies by usage tier - actual cost depends on usage volume",
                     metadata={
                         "pricing_tiers": len(prices),
                         "first_tier_price": first_tier_price,

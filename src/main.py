@@ -4,8 +4,11 @@ import logging
 from typing import List, Optional, Tuple
 from dotenv import load_dotenv
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from cost_estimator.infracost import InfracostEstimator
-from cost_estimator.aws_pricing import AWSPricingEstimator
 from cost_estimator.core import ResourceCost
 from stack_analyzer.parser import CloudFormationParser
 from stack_analyzer.diff import StackDiffAnalyzer, ResourceDiff
@@ -32,9 +35,8 @@ class CostEstimator:
         if aws_region:
             print(f"🌍 Using AWS region: {self.aws_region}")
         
-        # Initialize cost estimators
+        # Initialize cost estimator
         self.infracost = InfracostEstimator(infracost_api_key)
-        self.aws_pricing = AWSPricingEstimator(self.aws_region)
     
     def estimate_costs(
         self,
@@ -88,20 +90,14 @@ class CostEstimator:
                 properties["Region"] = self.aws_region
                 properties["id"] = resource.logical_id
                 
-                # Try Infracost first
+                # Get cost using Infracost
                 if self.infracost.is_resource_supported(resource.type):
                     cost = self.infracost.get_resource_cost(
                         resource.type,
                         properties
                     )
-                # Fall back to AWS Pricing API
-                elif self.aws_pricing.is_resource_supported(resource.type):
-                    cost = self.aws_pricing.get_resource_cost(
-                        resource.type,
-                        properties
-                    )
                 else:
-                    logger.warning(f"Resource type {resource.type} is not supported by any cost estimator")
+                    logger.warning(f"Resource type {resource.type} is not supported by Infracost")
                     continue
                 
                 costs.append(cost)

@@ -924,12 +924,7 @@ def is_free_resource(resource_type: str) -> bool:
     """Check if a resource type is a free resource."""
     return resource_type in FREE_RESOURCES
 
-def get_resource_mapping(resource_type: str) -> Dict[str, str]:
-    """Get the service mapping for a specific resource type."""
-    return PAID_RESOURCE_MAPPINGS.get(resource_type, {})
-
-
-# Pricing model definitions consolidated from pricing_models.py
+# Pricing model definitions for common resources
 PRICING_MODELS = {
     # Usage-based resources with detailed pricing information
     "AWS::SNS::Topic": {
@@ -1111,7 +1106,4 @@ def get_pricing_info(resource_type: str, region: str = "us-east-1") -> tuple[str
     )
 
 
-def is_usage_based_resource(resource_type: str) -> bool:
-    """Check if a resource has usage-based pricing."""
-    model, _, _, _ = get_pricing_info(resource_type)
-    return model == "usage_based" 
+ 

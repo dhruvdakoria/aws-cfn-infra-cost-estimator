@@ -44,30 +44,6 @@ def get_region_code(region: str) -> str:
     return region_mapping.get(region, "USE1")  # Default to US East 1
 
 
-def calculate_tiered_cost(prices, monthly_usage):
-    """Calculate cost using tiered pricing structure."""
-    total_cost = 0
-    remaining_usage = monthly_usage
-    
-    # Sort prices by startUsageAmount
-    sorted_prices = sorted(prices, key=lambda p: float(p.get('startUsageAmount', 0)))
-    
-    for price in sorted_prices:
-        start_amount = float(price.get('startUsageAmount', 0))
-        end_amount = float(price.get('endUsageAmount', float('inf')))
-        price_per_unit = float(price['USD'])
-        
-        if remaining_usage <= 0:
-            break
-            
-        # Calculate usage in this tier
-        tier_usage = min(remaining_usage, end_amount - start_amount)
-        if tier_usage > 0:
-            total_cost += tier_usage * price_per_unit
-            remaining_usage -= tier_usage
-    
-    return total_cost
-
 
 class QueryBuilder:
     """Base class for building GraphQL queries for Infracost API."""
@@ -118,14 +94,6 @@ class EC2QueryBuilder(QueryBuilder):
         
         # Extract image ID to determine OS
         image_id = properties.get("ImageId", "")
-        # Extract security groups, key name, etc.
-        security_groups = properties.get("SecurityGroups", [])
-        security_group_ids = properties.get("SecurityGroupIds", [])
-        key_name = properties.get("KeyName", "")
-        subnet_id = properties.get("SubnetId", "")
-        
-        # Determine operating system from image ID or user data
-        user_data = properties.get("UserData", "")
         operating_system = "Linux"  # Default
         
         # Try to infer OS from common patterns
@@ -164,10 +132,6 @@ class EC2QueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         # Extract actual EBS properties
         volume_type = properties.get("VolumeType", "gp3")
-        size = properties.get("Size", 8)  # Size in GB
-        iops = properties.get("Iops", None)
-        throughput = properties.get("Throughput", None)
-        encrypted = properties.get("Encrypted", False)
         
         region_code = get_region_code(region)
         
