@@ -451,31 +451,232 @@ class CloudWatchQueryBuilder(QueryBuilder):
 
 
 class DynamoDBQueryBuilder(QueryBuilder):
-    """Query builder for DynamoDB tables."""
+    """Query builder for DynamoDB tables with comprehensive pricing support."""
     
     @staticmethod
     def build_table_query(properties: Dict[str, Any]) -> str:
+        """Build primary query for DynamoDB table - focuses on read request units for on-demand billing."""
         region = properties.get("Region", "us-east-1")
-        # Extract actual DynamoDB table properties
-        table_name = properties.get("TableName", "")
         billing_mode = properties.get("BillingMode", "PAY_PER_REQUEST")
-        attribute_definitions = properties.get("AttributeDefinitions", [])
-        key_schema = properties.get("KeySchema", [])
-        provisioned_throughput = properties.get("ProvisionedThroughput", {})
-        global_secondary_indexes = properties.get("GlobalSecondaryIndexes", [])
-        local_secondary_indexes = properties.get("LocalSecondaryIndexes", [])
-        stream_specification = properties.get("StreamSpecification", {})
-        sse_specification = properties.get("SSESpecification", {})
+        table_class = properties.get("TableClass", "STANDARD")
         
-        # DynamoDB pricing is not available in Infracost API
-        # Use a non-existent usage type to trigger fallback pricing
+        # Use the correct product family based on billing mode (from dynamodb_table.go)
+        if billing_mode == "PAY_PER_REQUEST":
+            # On-demand billing - use PayPerRequest Throughput product family with group filter
+            attribute_filters = [
+                {"key": "group", "value": "DDB-ReadUnits"}
+            ]
+            
+            return QueryBuilder._build_base_query(
+                "AmazonDynamoDB", "Amazon DynamoDB PayPerRequest Throughput", region, attribute_filters
+            )
+        else:
+            # Provisioned billing - use Provisioned IOPS product family with group filter
+            attribute_filters = [
+                {"key": "group", "value": "DDB-ReadUnits"}
+            ]
+            
+            return QueryBuilder._build_base_query(
+                "AmazonDynamoDB", "Provisioned IOPS", region, attribute_filters
+            )
+    
+    @staticmethod
+    def build_write_query(properties: Dict[str, Any]) -> str:
+        """Build query for DynamoDB write capacity pricing."""
+        region = properties.get("Region", "us-east-1")
+        billing_mode = properties.get("BillingMode", "PAY_PER_REQUEST")
+        table_class = properties.get("TableClass", "STANDARD")
+        
+        region_code = get_region_code(region)
+        
+        # Build query based on billing mode and table class for WRITE operations
+        if billing_mode == "PAY_PER_REQUEST":
+            # On-demand billing - use write request units
+            if table_class == "STANDARD_INFREQUENT_ACCESS":
+                # Use region-specific usage type for IA write requests
+                if region_code == "USE1":
+                    usagetype = "IA-WriteRequestUnits"
+                else:
+                    usagetype = f"{region_code}-IA-WriteRequestUnits"
+                    
+                attribute_filters = [
+                    {"key": "usagetype", "value": usagetype}
+                ]
+            else:
+                # Use region-specific usage type for standard write requests
+                if region_code == "USE1":
+                    usagetype = "WriteRequestUnits"
+                else:
+                    usagetype = f"{region_code}-WriteRequestUnits"
+                    
+                attribute_filters = [
+                    {"key": "usagetype", "value": usagetype}
+                ]
+        else:
+            # Provisioned billing - use write capacity units
+            if table_class == "STANDARD_INFREQUENT_ACCESS":
+                # Use region-specific usage type for IA write capacity
+                if region_code == "USE1":
+                    usagetype = "IA-WriteCapacityUnit-Hrs"
+                else:
+                    usagetype = f"{region_code}-IA-WriteCapacityUnit-Hrs"
+                    
+                attribute_filters = [
+                    {"key": "usagetype", "value": usagetype}
+                ]
+            else:
+                # Use region-specific usage type for standard write capacity
+                if region_code == "USE1":
+                    usagetype = "WriteCapacityUnit-Hrs"
+                else:
+                    usagetype = f"{region_code}-WriteCapacityUnit-Hrs"
+                    
+                attribute_filters = [
+                    {"key": "usagetype", "value": usagetype}
+                ]
+        
+        # Use the correct product family based on billing mode
+        if billing_mode == "PAY_PER_REQUEST":
+            return QueryBuilder._build_base_query(
+                "AmazonDynamoDB", "Amazon DynamoDB PayPerRequest Throughput", region, [{"key": "group", "value": "DDB-WriteUnits"}]
+            )
+        else:
+            return QueryBuilder._build_base_query(
+                "AmazonDynamoDB", "Provisioned IOPS", region, [{"key": "group", "value": "DDB-WriteUnits"}]
+            )
+    
+    @staticmethod
+    def build_storage_query(properties: Dict[str, Any]) -> str:
+        """Build query for DynamoDB storage costs."""
+        region = properties.get("Region", "us-east-1")
+        table_class = properties.get("TableClass", "STANDARD")
+        
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for storage
+        if table_class == "STANDARD_INFREQUENT_ACCESS":
+            if region_code == "USE1":
+                usagetype = "IA-TimedStorage-ByteHrs"
+            else:
+                usagetype = f"{region_code}-IA-TimedStorage-ByteHrs"
+        else:
+            if region_code == "USE1":
+                usagetype = "TimedStorage-ByteHrs"
+            else:
+                usagetype = f"{region_code}-TimedStorage-ByteHrs"
+        
         attribute_filters = [
-            {"key": "usagetype", "value": "DynamoDB-NotFound"}
+            {"key": "usagetype", "value": usagetype}
         ]
         
         return QueryBuilder._build_base_query(
             "AmazonDynamoDB", "Database Storage", region, attribute_filters
         )
+    
+    @staticmethod
+    def build_backup_query(properties: Dict[str, Any]) -> str:
+        """Build query for DynamoDB backup costs."""
+        region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for backup storage
+        if region_code == "USE1":
+            usagetype = "USE1-TimedBackupStorage-ByteHrs"
+        else:
+            usagetype = f"{region_code}-TimedBackupStorage-ByteHrs"
+        
+        attribute_filters = [
+            {"key": "usagetype", "value": usagetype}
+        ]
+        
+        return QueryBuilder._build_base_query(
+            "AmazonDynamoDB", "Database Storage", region, attribute_filters
+        )
+    
+    @staticmethod
+    def build_pitr_query(properties: Dict[str, Any]) -> str:
+        """Build query for DynamoDB Point-in-Time Recovery costs."""
+        region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for PITR storage
+        if region_code == "USE1":
+            usagetype = "USE1-TimedPITRStorage-ByteHrs"
+        else:
+            usagetype = f"{region_code}-TimedPITRStorage-ByteHrs"
+        
+        attribute_filters = [
+            {"key": "usagetype", "value": usagetype}
+        ]
+        
+        return QueryBuilder._build_base_query(
+            "AmazonDynamoDB", "Database Storage", region, attribute_filters
+        )
+    
+    @staticmethod
+    def build_streams_query(properties: Dict[str, Any]) -> str:
+        """Build query for DynamoDB Streams costs."""
+        region = properties.get("Region", "us-east-1")
+        region_code = get_region_code(region)
+        
+        # Use region-specific usage type for streams
+        if region_code == "USE1":
+            usagetype = "USE1-Streams-Requests"
+        else:
+            usagetype = f"{region_code}-Streams-Requests"
+        
+        attribute_filters = [
+            {"key": "group", "value": "DDB-StreamsReadRequests"}
+        ]
+        
+        return QueryBuilder._build_base_query(
+            "AmazonDynamoDB", "API Request", region, attribute_filters
+        )
+    
+    @staticmethod
+    def build_global_table_query(properties: Dict[str, Any]) -> str:
+        """Build query for DynamoDB Global Tables replication costs."""
+        region = properties.get("Region", "us-east-1")
+        billing_mode = properties.get("BillingMode", "PAY_PER_REQUEST")
+        table_class = properties.get("TableClass", "STANDARD")
+        
+        # Build query for replicated write costs
+        if billing_mode == "PAY_PER_REQUEST":
+            if table_class == "STANDARD_INFREQUENT_ACCESS":
+                attribute_filters = [
+                    {"key": "group", "value": "DDB-ReplicatedWriteUnitsIA"},
+                    {"key": "operation", "value": "PayPerRequestThroughput"},
+                    {"key": "usagetype", "value": "IA-ReplWriteRequestUnits"}
+                ]
+            else:
+                attribute_filters = [
+                    {"key": "group", "value": "DDB-ReplicatedWriteUnits"},
+                    {"key": "operation", "value": "PayPerRequestThroughput"},
+                    {"key": "usagetype", "value": "ReplWriteRequestUnits"}
+                ]
+        else:
+            if table_class == "STANDARD_INFREQUENT_ACCESS":
+                attribute_filters = [
+                    {"key": "group", "value": "DDB-ReplicatedWriteUnitsIA"},
+                    {"key": "operation", "value": "CommittedThroughput"},
+                    {"key": "usagetype", "value": "IA-ReplWriteCapacityUnit-Hrs"}
+                ]
+            else:
+                attribute_filters = [
+                    {"key": "group", "value": "DDB-ReplicatedWriteUnits"},
+                    {"key": "operation", "value": "CommittedThroughput"},
+                    {"key": "usagetype", "value": "ReplWriteCapacityUnit-Hrs"}
+                ]
+        
+        # Use the correct product family based on billing mode
+        if billing_mode == "PAY_PER_REQUEST":
+            return QueryBuilder._build_base_query(
+                "AmazonDynamoDB", "Amazon DynamoDB PayPerRequest Throughput", region, attribute_filters
+            )
+        else:
+            return QueryBuilder._build_base_query(
+                "AmazonDynamoDB", "DDB-Operation-ReplicatedWrite", region, attribute_filters
+            )
 
 
 class APIGatewayQueryBuilder(QueryBuilder):

@@ -164,6 +164,10 @@ class InfracostEstimator(CostEstimator):
             resource_properties["id"] = f"{resource_type}-{hash(str(resource_properties))}"
         
         try:
+            # Special handling for DynamoDB to show comprehensive pricing
+            if resource_type == "AWS::DynamoDB::Table":
+                return self._get_dynamodb_comprehensive_cost(resource_properties)
+            
             # Get the appropriate query builder for this resource type
             query_builder = get_query_builder(resource_type)
             if not query_builder:
@@ -172,16 +176,17 @@ class InfracostEstimator(CostEstimator):
             # Build the GraphQL query
             query = query_builder(resource_properties)
             
-            # Debug output for problematic resources (disabled)
-            # if resource_type in ["AWS::KMS::Key", "AWS::EKS::Cluster", "AWS::Route53::HostedZone", "AWS::CloudWatch::Dashboard"]:
+            # Debug output for DynamoDB (disabled)
+            # if resource_type in ["AWS::DynamoDB::Table"]:
             #     print(f"\n🔍 DEBUG: {resource_type}")
+            #     print(f"Properties: {resource_properties}")
             #     print(f"Query: {query}")
             
             # Make the API request
             response = self._make_graphql_request(query)
             
-            # Debug output for problematic resources (disabled)
-            # if resource_type in ["AWS::KMS::Key", "AWS::EKS::Cluster", "AWS::Route53::HostedZone", "AWS::CloudWatch::Dashboard"]:
+            # Debug output for DynamoDB (disabled)
+            # if resource_type in ["AWS::DynamoDB::Table"]:
             #     print(f"Response: {json.dumps(response, indent=2)}")
             
             # Parse response - now handle tiered pricing
@@ -384,6 +389,110 @@ class InfracostEstimator(CostEstimator):
             logger.error(f"Error processing pricing data for {resource_type}: {str(e)}")
             raise PricingDataError(f"Error processing pricing data: {str(e)}")
 
+    def _get_dynamodb_comprehensive_cost(self, resource_properties: Dict[str, Any]) -> ResourceCost:
+        """Get comprehensive DynamoDB pricing including read, write, storage, and additional features."""
+        from .query_builders import DynamoDBQueryBuilder
+        
+        resource_id = resource_properties.get("id", "unknown")
+        region = resource_properties.get("Region", "us-east-1")
+        billing_mode = resource_properties.get("BillingMode", "PAY_PER_REQUEST")
+        
+        pricing_components = []
+        total_base_cost = 0.0
+        
+        # 1. Read capacity pricing
+        try:
+            read_query = DynamoDBQueryBuilder.build_table_query(resource_properties)
+            read_response = self._make_graphql_request(read_query)
+            read_products = read_response.get("data", {}).get("products", [])
+            if read_products and read_products[0].get("prices"):
+                read_price = read_products[0]["prices"][0]
+                read_usd = float(read_price.get("USD", 0))
+                read_unit = read_price.get("unit", "ReadRequestUnits")
+                read_desc = read_price.get("description", "")
+                
+                if read_usd > 0:
+                    pricing_components.append(f"Read: ${read_usd * 1000000:.2f}/M")
+                else:
+                    pricing_components.append(f"Read: ${read_usd:.6f}/{read_unit}")
+        except Exception as e:
+            pricing_components.append("Read: Pricing unavailable")
+        
+        # 2. Write capacity pricing
+        try:
+            write_query = DynamoDBQueryBuilder.build_write_query(resource_properties)
+            write_response = self._make_graphql_request(write_query)
+            write_products = write_response.get("data", {}).get("products", [])
+            if write_products and write_products[0].get("prices"):
+                write_price = write_products[0]["prices"][0]
+                write_usd = float(write_price.get("USD", 0))
+                write_unit = write_price.get("unit", "WriteRequestUnits")
+                write_desc = write_price.get("description", "")
+                
+                if write_usd > 0:
+                    pricing_components.append(f"Write: ${write_usd * 1000000:.2f}/M")
+                else:
+                    pricing_components.append(f"Write: ${write_usd:.6f}/{write_unit}")
+        except Exception as e:
+            pricing_components.append("Write: Pricing unavailable")
+        
+        # 3. Storage pricing
+        try:
+            storage_query = DynamoDBQueryBuilder.build_storage_query(resource_properties)
+            storage_response = self._make_graphql_request(storage_query)
+            storage_products = storage_response.get("data", {}).get("products", [])
+            if storage_products and storage_products[0].get("prices"):
+                storage_price = storage_products[0]["prices"][0]
+                storage_usd = float(storage_price.get("USD", 0))
+                storage_unit = storage_price.get("unit", "GB-Mo")
+                
+                pricing_components.append(f"Storage: ${storage_usd:.3f}/{storage_unit}")
+        except Exception as e:
+            pricing_components.append("Storage: Pricing unavailable")
+        
+        # 4. Streams pricing (if applicable)
+        stream_specification = resource_properties.get("StreamSpecification", {})
+        if stream_specification.get("StreamEnabled", False):
+            try:
+                streams_query = DynamoDBQueryBuilder.build_streams_query(resource_properties)
+                streams_response = self._make_graphql_request(streams_query)
+                streams_products = streams_response.get("data", {}).get("products", [])
+                if streams_products and streams_products[0].get("prices"):
+                    streams_price = streams_products[0]["prices"][0]
+                    streams_usd = float(streams_price.get("USD", 0))
+                    streams_unit = streams_price.get("unit", "sRRUs")
+                    
+                    pricing_components.append(f"Streams: ${streams_usd:.6f}/{streams_unit}")
+            except Exception as e:
+                pricing_components.append("Streams: Pricing unavailable")
+        
+        # Create comprehensive pricing details with better formatting
+        if pricing_components:
+            # Create a more concise format that fits better in tables
+            pricing_summary = f"DynamoDB {billing_mode.lower().replace('_', ' ')}: " + " | ".join(pricing_components)
+            # Also create a detailed version for metadata
+            pricing_details = pricing_summary
+        else:
+            pricing_details = f"DynamoDB pricing for {region}: On-demand read/write requests + storage costs"
+        
+        return ResourceCost(
+            resource_type="AWS::DynamoDB::Table",
+            resource_id=resource_id,
+            hourly_cost=0.0,
+            monthly_cost=0.0,
+            currency="USD",
+            usage_type="usage_based",
+            description="Monthly cost depends on usage",
+            metadata={
+                "comprehensive_pricing": True,
+                "billing_mode": billing_mode,
+                "pricing_components": pricing_components,
+                "region": region
+            },
+            pricing_model="usage_based",
+            pricing_details=pricing_details
+        )
+
     def _generate_basic_pricing_details(self, resource_type: str, price_usd: float, unit: str) -> str:
         """Generate basic pricing details for resources without detailed API information."""
         if price_usd > 0 and unit:
@@ -408,7 +517,7 @@ class InfracostEstimator(CostEstimator):
                 "AWS::EFS::FileSystem": "$0.30 per GB per month for Standard storage",
                 "AWS::CodeBuild::Project": "Build minutes pricing varies by compute type",
                 "AWS::CloudTrail::Trail": "First trail free, additional trails $2.00 per 100,000 events",
-                "AWS::DynamoDB::Table": "On-demand: $1.25 per million read requests, $1.25 per million write requests + $0.25 per GB storage per month"
+                "AWS::DynamoDB::Table": "DynamoDB pricing: On-demand read/write requests + storage costs (varies by region and table class)"
             }
             return resource_details.get(resource_type, "Usage-based pricing - cost depends on actual usage")
 
