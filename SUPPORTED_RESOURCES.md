@@ -38,6 +38,9 @@ These resources are classified as free because they don't incur direct charges (
 - `AWS::IAM::UserPolicy`
 - `AWS::IAM::UserToGroupAddition`
 
+#### Certificate Management (Infrastructure Services)
+- `AWS::ACMPCA::CertificateAuthority`
+
 #### API Gateway (Configuration Components)
 - `AWS::ApiGateway::Account`
 - `AWS::ApiGateway::ApiKey`
@@ -78,6 +81,7 @@ These resources are classified as free because they don't incur direct charges (
 - `AWS::AutoScaling::ScalingPolicy`
 - `AWS::AutoScaling::ScheduledAction`
 - `AWS::ApplicationAutoScaling::ScalingPolicy`
+- `AWS::ApplicationAutoScaling::ScalableTarget`
 - `AWS::EC2::LaunchTemplate`
 
 #### EC2 Networking & Security (Free Components)
@@ -147,6 +151,11 @@ These resources are classified as free because they don't incur direct charges (
 - `AWS::EFS::AccessPoint`
 - `AWS::EFS::FileSystemPolicy`
 - `AWS::EFS::MountTarget`
+
+#### Infrastructure Management Services
+- `AWS::CloudFormation::Stack`
+- `AWS::CloudFormation::StackSet`
+- `AWS::ElasticBeanstalk::Environment`
 
 ### 💰 Paid Resources (Successfully Tested)
 
@@ -278,16 +287,7 @@ These resources are mapped as paid but currently have pricing query issues requi
 - `AWS::DMS::ReplicationInstance` ❌ (No products found in response)
 
 #### Certificate Management
-- `AWS::ACMPCA::CertificateAuthority` ❌ (No products found in response)
 - `AWS::CertificateManager::Certificate` ❌ (No products found in response)
-
-#### Application Services
-- `AWS::ApplicationAutoScaling::ScalableTarget` ❌ (No products found in response)
-- `AWS::ElasticBeanstalk::Environment` ❌ (No products found in response)
-
-#### Infrastructure Management
-- `AWS::CloudFormation::Stack` ❌ (No products found in response)
-- `AWS::CloudFormation::StackSet` ❌ (No products found in response)
 
 #### Networking - Advanced
 - `AWS::DirectConnect::Connection` ❌ (No products found in response)
@@ -307,14 +307,14 @@ These resources are mapped as paid but currently have pricing query issues requi
 
 | Category | Free Resources | Paid Resources | Pending Resources | Total |
 |----------|---------------|----------------|-------------------|-------|
-| Compute | 8 | 6 | 2 | 16 |
+| Compute | 10 | 6 | 0 | 16 |
 | Database | 5 | 8 | 3 | 16 |
 | Networking | 25 | 7 | 4 | 36 |
 | Storage | 8 | 4 | 0 | 12 |
-| Security | 20 | 4 | 2 | 26 |
+| Security | 21 | 4 | 1 | 26 |
 | Analytics | 0 | 6 | 0 | 6 |
-| Management | 15 | 5 | 2 | 22 |
-| **Total** | **81** | **40** | **13** | **134** |
+| Management | 18 | 5 | 1 | 24 |
+| **Total** | **87** | **40** | **9** | **136** |
 
 ### Pricing Models
 
@@ -347,8 +347,11 @@ These resources are mapped as paid but currently have pricing query issues requi
 1. **CloudFront Resources**: Need custom query builders for content delivery pricing
 2. **Neptune Database**: Requires specific graph database pricing queries
 3. **DMS Services**: Need migration-specific pricing models
-4. **Certificate Services**: ACM public certificates are free, private are paid
+4. **Certificate Services**: ACM public certificates are free, private certificates require proper query builders
 5. **Directory Services**: Regional availability and query optimization needed
+
+### Infrastructure/Management Services
+Infrastructure and management services like CloudFormation stacks, Elastic Beanstalk environments, Application Auto Scaling targets, and ACM Private CA are correctly classified as free resources since they don't incur direct charges (though the underlying resources they manage may have costs).
 
 ### Testing Coverage
 - **Primary regions**: us-east-1, ca-central-1
