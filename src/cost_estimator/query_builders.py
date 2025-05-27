@@ -55,7 +55,10 @@ class QueryBuilder:
         filters_str = ""
         for i, filter_item in enumerate(attribute_filters):
             comma = "," if i < len(attribute_filters) - 1 else ""
-            filters_str += f'{{ key: "{filter_item["key"]}", value: "{filter_item["value"]}" }}{comma}\n                '
+            if "valueRegex" in filter_item:
+                filters_str += f'{{ key: "{filter_item["key"]}", value_regex: "{filter_item["valueRegex"]}" }}{comma}\n                '
+            else:
+                filters_str += f'{{ key: "{filter_item["key"]}", value: "{filter_item["value"]}" }}{comma}\n                '
         
         query = f'''
         {{
@@ -89,7 +92,10 @@ class QueryBuilder:
         filters_str = ""
         for i, filter_item in enumerate(attribute_filters):
             comma = "," if i < len(attribute_filters) - 1 else ""
-            filters_str += f'{{ key: "{filter_item["key"]}", value: "{filter_item["value"]}" }}{comma}\n                '
+            if "valueRegex" in filter_item:
+                filters_str += f'{{ key: "{filter_item["key"]}", value_regex: "{filter_item["valueRegex"]}" }}{comma}\n                '
+            else:
+                filters_str += f'{{ key: "{filter_item["key"]}", value: "{filter_item["value"]}" }}{comma}\n                '
         
         query = f'''
         {{
@@ -166,16 +172,9 @@ class EC2QueryBuilder(QueryBuilder):
         # Extract actual EBS properties
         volume_type = properties.get("VolumeType", "gp3")
         
-        region_code = get_region_code(region)
-        
-        # Use region-specific usage type for EBS volumes
-        if region_code == "USE1":
-            usagetype = f"EBS:VolumeUsage.{volume_type}"
-        else:
-            usagetype = f"{region_code}-EBS:VolumeUsage.{volume_type}"
-        
+        # Use regex pattern like Go files to match any region-specific usage type
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "volumeApiName", "value": volume_type}
         ]
         
         return QueryBuilder._build_base_query(
@@ -185,16 +184,10 @@ class EC2QueryBuilder(QueryBuilder):
     @staticmethod
     def build_eip_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for Elastic IP
-        if region_code == "USE1":
-            usagetype = "ElasticIP:IdleAddress"
-        else:
-            usagetype = f"{region_code}-ElasticIP:IdleAddress"
-        
+        # Use regex pattern to match any region-specific usage type for EIP
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/ElasticIP:IdleAddress/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -205,8 +198,9 @@ class EC2QueryBuilder(QueryBuilder):
     def build_snapshot_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Use regex pattern like Go files to match EBS snapshot usage
         attribute_filters = [
-            {"key": "productFamily", "value": "Storage Snapshot"}
+            {"key": "usagetype", "valueRegex": "/EBS:SnapshotUsage$/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -259,29 +253,27 @@ class RDSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        # Extract actual cluster properties
+        
+        # Extract cluster properties
         engine = properties.get("Engine", "aurora-mysql")
-        engine_version = properties.get("EngineVersion", "")
-        database_name = properties.get("DatabaseName", "")
-        master_username = properties.get("MasterUsername", "")
-        backup_retention_period = properties.get("BackupRetentionPeriod", 1)
         
-        # Map engine for clusters
-        if "aurora-mysql" in engine:
-            database_engine = "Aurora MySQL"
-        elif "aurora-postgresql" in engine:
-            database_engine = "Aurora PostgreSQL"
-        elif "aurora" in engine:
-            database_engine = "Aurora MySQL"  # Default
-        else:
-            database_engine = engine
+        # Map engine to database engine value
+        engine_mapping = {
+            "aurora-mysql": "Aurora MySQL",
+            "aurora-postgresql": "Aurora PostgreSQL",
+            "aurora": "Aurora MySQL"  # Default
+        }
         
+        database_engine = engine_mapping.get(engine, "Aurora MySQL")
+        
+        # Use regex pattern for Aurora storage usage that works across regions
         attribute_filters = [
-            {"key": "databaseEngine", "value": database_engine}
+            {"key": "databaseEngine", "value": "Any"},
+            {"key": "usagetype", "valueRegex": "/Aurora.*StorageUsage/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonRDS", "Database Cluster", region, attribute_filters
+            "AmazonRDS", "Database Storage", region, attribute_filters
         )
 
 
@@ -299,16 +291,9 @@ class S3QueryBuilder(QueryBuilder):
         notification_configuration = properties.get("NotificationConfiguration", {})
         logging_configuration = properties.get("LoggingConfiguration", {})
         
-        region_code = get_region_code(region)
-        
-        # Use region-specific usage type for S3 storage
-        if region_code == "USE1":
-            usagetype = "TimedStorage-ByteHrs"
-        else:
-            usagetype = f"{region_code}-TimedStorage-ByteHrs"
-        
+        # Use regex pattern to match any region-specific usage type for S3 storage
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype},
+            {"key": "usagetype", "valueRegex": "/TimedStorage-ByteHrs/"},
             {"key": "storageClass", "value": "General Purpose"}
         ]
         
@@ -332,16 +317,9 @@ class LambdaQueryBuilder(QueryBuilder):
         vpc_config = properties.get("VpcConfig", {})
         dead_letter_config = properties.get("DeadLetterConfig", {})
         
-        region_code = get_region_code(region)
-        
-        # Use region-specific usage type for Lambda
-        if region_code == "USE1":
-            usagetype = "Lambda-GB-Second"
-        else:
-            usagetype = f"{region_code}-Lambda-GB-Second"
-        
+        # Use regex pattern to match any region-specific usage type for Lambda
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/GB-Second/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -364,16 +342,9 @@ class ELBQueryBuilder(QueryBuilder):
         security_groups = properties.get("SecurityGroups", [])
         load_balancer_attributes = properties.get("LoadBalancerAttributes", [])
         
-        region_code = get_region_code(region)
-        
-        # Use region-specific usage type for Load Balancer
-        if region_code == "USE1":
-            usagetype = "LoadBalancerUsage"
-        else:
-            usagetype = f"{region_code}-LoadBalancerUsage"
-        
+        # Use regex pattern to match any region-specific usage type for Load Balancer
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype},
+            {"key": "usagetype", "valueRegex": "/LoadBalancerUsage/"},
             {"key": "operation", "value": "LoadBalancing"}
         ]
         
@@ -384,16 +355,11 @@ class ELBQueryBuilder(QueryBuilder):
     @staticmethod
     def build_classic_elb_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        # Extract actual Classic ELB properties
-        load_balancer_name = properties.get("LoadBalancerName", "")
-        listeners = properties.get("Listeners", [])
-        availability_zones = properties.get("AvailabilityZones", [])
-        subnets = properties.get("Subnets", [])
-        security_groups = properties.get("SecurityGroups", [])
-        health_check = properties.get("HealthCheck", {})
         
+        # Use regex pattern like Go files to match Classic ELB usage
         attribute_filters = [
-            {"key": "loadBalancerType", "value": "classic"}
+            {"key": "locationType", "value": "AWS Region"},
+            {"key": "usagetype", "valueRegex": "/LoadBalancerUsage/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -407,16 +373,10 @@ class CloudWatchQueryBuilder(QueryBuilder):
     @staticmethod
     def build_logs_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for CloudWatch Logs
-        if region_code == "USE1":
-            usagetype = "DataProcessing-Bytes"
-        else:
-            usagetype = f"{region_code}-DataProcessing-Bytes"
-        
+        # Use regex pattern to match any region-specific usage type for CloudWatch Logs
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/DataProcessing-Bytes/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -425,25 +385,25 @@ class CloudWatchQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_dashboard_query(properties: Dict[str, Any]) -> str:
-        region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
-        
-        # CloudWatch dashboards have a fixed monthly cost of $3.00 per dashboard
-        # Dashboard pricing is not available in Infracost API
-        # Use a non-existent usage type to trigger fallback pricing
+        # CloudWatch Dashboard uses AmazonCloudWatch service and Dashboard product family per Go file
+        # The Go file shows no Region field in ProductFilter, so it's a global service
         attribute_filters = [
-            {"key": "usagetype", "value": "Dashboard-NotFound"}
+            {"key": "usagetype", "value": "DashboardsUsageHour"}
         ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonCloudWatch", "Dashboard", region, attribute_filters
+        return QueryBuilder._build_global_query(
+            "AmazonCloudWatch", "Dashboard", attribute_filters, purchase_option="on_demand"
         )
     
     @staticmethod
     def build_alarm_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
-        attribute_filters = []
+        # CloudWatch Alarm uses AmazonCloudWatch service and Alarm product family per Go file
+        attribute_filters = [
+            {"key": "alarmType", "valueRegex": "/Standard/"},
+            {"key": "usagetype", "valueRegex": "/AlarmMonitorUsage$/"}
+        ]
         
         return QueryBuilder._build_base_query(
             "AmazonCloudWatch", "Alarm", region, attribute_filters, purchase_option="on_demand"
@@ -691,17 +651,9 @@ class APIGatewayQueryBuilder(QueryBuilder):
         endpoint_configuration = properties.get("EndpointConfiguration", {})
         endpoint_types = endpoint_configuration.get("Types", ["EDGE"])
         
-        region_code = get_region_code(region)
-        
-        # Use region-specific usage type for API Gateway REST requests
-        # For us-east-1, the usage type is USE1-ApiGatewayRequest (not just ApiGatewayRequest)
-        if region_code == "USE1":
-            usagetype = "USE1-ApiGatewayRequest"
-        else:
-            usagetype = f"{region_code}-ApiGatewayRequest"
-        
+        # Use regex pattern to match any region-specific usage type for API Gateway REST requests
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/ApiGatewayRequest/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -717,23 +669,15 @@ class APIGatewayQueryBuilder(QueryBuilder):
         description = properties.get("Description", "")
         cors_configuration = properties.get("CorsConfiguration", {})
         
-        region_code = get_region_code(region)
-        
-        # Use region-specific usage type for API Gateway HTTP requests
+        # Use regex pattern to match any region-specific usage type for API Gateway HTTP requests
         if protocol_type.upper() == "HTTP":
-            if region_code == "USE1":
-                usagetype = "USE1-ApiGatewayHttpRequest"
-            else:
-                usagetype = f"{region_code}-ApiGatewayHttpRequest"
+            attribute_filters = [
+                {"key": "usagetype", "valueRegex": "/ApiGatewayHttpRequest/"}
+            ]
         else:
-            if region_code == "USE1":
-                usagetype = "USE1-ApiGatewayRequest"
-            else:
-                usagetype = f"{region_code}-ApiGatewayRequest"
-        
-        attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
-        ]
+            attribute_filters = [
+                {"key": "usagetype", "valueRegex": "/ApiGatewayRequest/"}
+            ]
         
         return QueryBuilder._build_base_query(
             "AmazonApiGateway", "API Calls", region, attribute_filters
@@ -766,25 +710,16 @@ class EKSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        # Extract actual EKS cluster properties
-        name = properties.get("Name", "")
-        version = properties.get("Version", "")
-        role_arn = properties.get("RoleArn", "")
-        resources_vpc_config = properties.get("ResourcesVpcConfig", {})
-        logging = properties.get("Logging", {})
-        encryption_config = properties.get("EncryptionConfig", [])
+        cluster_name = properties.get("Name", "")
+        version = properties.get("Version", "1.21")
         
-        region_code = get_region_code(region)
-        
-        # EKS clusters have a fixed hourly cost of $0.10 per hour
-        # Standard cluster pricing is not available in Infracost API, only Auto Mode
-        # Use a non-existent usage type to trigger fallback pricing
+        # EKS clusters have a fixed hourly cost - use correct usage type pattern
         attribute_filters = [
-            {"key": "usagetype", "value": "EKS-Cluster-Standard-NotFound"}
+            {"key": "usagetype", "valueRegex": "/EKS.*Cluster/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEKS", "Compute", region, attribute_filters
+            "AmazonEKS", "Compute", region, attribute_filters, purchase_option="on_demand"
         )
     
     @staticmethod
@@ -800,12 +735,29 @@ class EKSQueryBuilder(QueryBuilder):
         disk_size = properties.get("DiskSize", 20)
         node_role = properties.get("NodeRole", "")
         
+        # EKS Node Groups use EC2 instances, so use EC2 pricing structure
+        # Determine operating system from AMI type
+        if "BOTTLEROCKET" in ami_type:
+            operating_system = "Linux"
+        elif "WINDOWS" in ami_type:
+            operating_system = "Windows"
+        else:
+            operating_system = "Linux"  # AL2_x86_64, AL2_ARM_64
+        
+        # Determine purchase option
+        purchase_option = "on_demand" if capacity_type == "ON_DEMAND" else "spot"
+        
         attribute_filters = [
-            {"key": "instanceType", "value": instance_types[0] if instance_types else "t3.medium"}
+            {"key": "instanceType", "value": instance_types[0] if instance_types else "t3.medium"},
+            {"key": "tenancy", "value": "Shared"},
+            {"key": "operatingSystem", "value": operating_system},
+            {"key": "preInstalledSw", "value": "NA"},
+            {"key": "licenseModel", "value": "No License required"},
+            {"key": "capacitystatus", "value": "Used"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonEKS", "Node Group", region, attribute_filters
+            "AmazonEC2", "Compute Instance", region, attribute_filters, purchase_option=purchase_option
         )
 
 
@@ -817,17 +769,11 @@ class ElastiCacheQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         cache_node_type = properties.get("CacheNodeType", "cache.t3.micro")
         engine = properties.get("Engine", "redis")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for ElastiCache
-        if region_code == "USE1":
-            usagetype = f"NodeUsage:{cache_node_type}"
-        else:
-            usagetype = f"{region_code}-NodeUsage:{cache_node_type}"
-        
+        # Use the same pattern as Go files for ElastiCache
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype},
             {"key": "instanceType", "value": cache_node_type},
+            {"key": "locationType", "value": "AWS Region"},
             {"key": "cacheEngine", "value": engine.title()}
         ]
         
@@ -872,10 +818,13 @@ class Route53QueryBuilder(QueryBuilder):
     def build_health_check_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
-        attribute_filters = []
+        # Route53 health checks - use basic AWS health check
+        attribute_filters = [
+            {"key": "usagetype", "value": "Health-Check-AWS"}
+        ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonRoute53", "Health Check", region, attribute_filters, purchase_option=""
+        return QueryBuilder._build_global_query(
+            "AmazonRoute53", "DNS Health Check", attribute_filters
         )
 
 
@@ -885,16 +834,10 @@ class SNSQueryBuilder(QueryBuilder):
     @staticmethod
     def build_topic_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for SNS requests
-        if region_code == "USE1":
-            usagetype = "Requests-Tier1"
-        else:
-            usagetype = f"{region_code}-Requests-Tier1"
-        
+        # Use regex pattern to match any region-specific usage type for SNS requests
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/Requests-Tier1$/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -909,16 +852,11 @@ class SQSQueryBuilder(QueryBuilder):
     def build_queue_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         queue_type = properties.get("FifoQueue", False)
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for SQS requests (using SNS pattern)
-        if region_code == "USE1":
-            usagetype = "Requests-Tier1"
-        else:
-            usagetype = f"{region_code}-Requests-Tier1"
-        
+        # Use regex pattern to match any region-specific usage type for SQS requests
+        # SQS uses the same service as SNS for API requests
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/Requests-Tier1$/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -932,14 +870,9 @@ class SecretsManagerQueryBuilder(QueryBuilder):
     @staticmethod
     def build_secret_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for Secrets Manager
-        usagetype = f"{region_code}-AWSSecretsManager-Secrets"
-        
-        attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
-        ]
+        # Secrets Manager uses AWSSecretsManager service and Secret product family per Go file
+        attribute_filters = []
         
         return QueryBuilder._build_base_query(
             "AWSSecretsManager", "Secret", region, attribute_filters
@@ -954,14 +887,20 @@ class StepFunctionsQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         state_machine_type = properties.get("StateMachineType", "STANDARD")
         
-        # StepFunctions pricing is not available in Infracost API
-        # Use a non-existent usage type to trigger fallback pricing
-        attribute_filters = [
-            {"key": "usagetype", "value": "StepFunctions-NotFound"}
-        ]
+        # Use the correct service name and product family from Go file
+        if state_machine_type.upper() == "EXPRESS":
+            # Express workflows are charged by requests and duration
+            attribute_filters = [
+                {"key": "usagetype", "valueRegex": "/StepFunctions-Request/"}
+            ]
+        else:
+            # Standard workflows are charged by state transitions
+            attribute_filters = [
+                {"key": "usagetype", "valueRegex": "/StateTransition/"}
+            ]
         
         return QueryBuilder._build_base_query(
-            "AWSStepFunctions", "State Machine", region, attribute_filters, purchase_option=""
+            "AmazonStates", "AWS Step Functions", region, attribute_filters, purchase_option="on_demand"
         )
 
 
@@ -971,16 +910,10 @@ class VPCQueryBuilder(QueryBuilder):
     @staticmethod
     def build_nat_gateway_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
         
-        # Use region-specific usage type for NAT Gateway
-        if region_code == "USE1":
-            usagetype = "NatGateway-Hours"
-        else:
-            usagetype = f"{region_code}-NatGateway-Hours"
-        
+        # Use regex pattern to match any region-specific usage type for NAT Gateway
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/NatGateway-Hours/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -991,10 +924,11 @@ class VPCQueryBuilder(QueryBuilder):
     def build_vpn_connection_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # VPN connections use AmazonVPC service and Cloud Connectivity product family per Go file
         attribute_filters = []
         
         return QueryBuilder._build_base_query(
-            "AmazonVPC", "VPN Connection", region, attribute_filters
+            "AmazonVPC", "Cloud Connectivity", region, attribute_filters
         )
     
     @staticmethod
@@ -1002,12 +936,21 @@ class VPCQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         vpc_endpoint_type = properties.get("VpcEndpointType", "Interface")
         
+        # Map CloudFormation endpoint types to Infracost endpoint types
+        endpoint_type_mapping = {
+            "Interface": "PrivateLink",
+            "Gateway": "Gateway",
+            "GatewayLoadBalancer": "Gateway Load Balancer Endpoint"
+        }
+        
+        endpoint_type = endpoint_type_mapping.get(vpc_endpoint_type, "PrivateLink")
+        
         attribute_filters = [
-            {"key": "endpointType", "value": vpc_endpoint_type}
+            {"key": "endpointType", "value": endpoint_type}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonVPC", "VPC Endpoint", region, attribute_filters
+            "AmazonVPC", "VpcEndpoint", region, attribute_filters
         )
 
 
@@ -1017,11 +960,15 @@ class WAFQueryBuilder(QueryBuilder):
     @staticmethod
     def build_web_acl_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        scope = properties.get("Scope", "REGIONAL")
         
-        attribute_filters = []
+        # WAF Web ACLs use awswaf service - pattern works for both WAF and WAFv2
+        attribute_filters = [
+            {"key": "usagetype", "valueRegex": "/^[A-Z0-9]*-(?!ShieldProtected-)WebACL/i"}
+        ]
         
         return QueryBuilder._build_base_query(
-            "AWSWAF", "Web ACL", region, attribute_filters, purchase_option=""
+            "awswaf", "Web Application Firewall", region, attribute_filters
         )
 
 
@@ -1054,15 +1001,13 @@ class ECRQueryBuilder(QueryBuilder):
     @staticmethod
     def build_repository_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
+        repository_name = properties.get("RepositoryName", "")
         
-        # ECR pricing is not available in Infracost API
-        # Use a non-existent usage type to trigger fallback pricing
-        attribute_filters = [
-            {"key": "usagetype", "value": "ECR-NotFound"}
-        ]
+        # ECR uses AmazonECR service and EC2 Container Registry product family per Go file
+        attribute_filters = []
         
         return QueryBuilder._build_base_query(
-            "AmazonECR", "Container Registry", region, attribute_filters
+            "AmazonECR", "EC2 Container Registry", region, attribute_filters
         )
 
 
@@ -1088,16 +1033,35 @@ class CodeBuildQueryBuilder(QueryBuilder):
     @staticmethod
     def build_project_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        compute_type = properties.get("ComputeType", "BUILD_GENERAL1_SMALL")
+        environment = properties.get("Environment", {})
+        compute_type = environment.get("ComputeType", "BUILD_GENERAL1_SMALL")
+        environment_type = environment.get("Type", "LINUX_CONTAINER")
         
-        # CodeBuild pricing is not available in Infracost API
-        # Use a non-existent usage type to trigger fallback pricing
+        # CodeBuild uses CodeBuild service and Compute product family per Go file
+        # Map environment type and compute type like the Go file
+        environment_type_mapping = {
+            "LINUX_CONTAINER": "Linux",
+            "LINUX_GPU_CONTAINER": "LinuxGPU", 
+            "ARM_CONTAINER": "ARM",
+            "WINDOWS_SERVER_2019_CONTAINER": "Windows"
+        }
+        
+        compute_type_mapping = {
+            "BUILD_GENERAL1_SMALL": "g1.small",
+            "BUILD_GENERAL1_MEDIUM": "g1.medium",
+            "BUILD_GENERAL1_LARGE": "g1.large",
+            "BUILD_GENERAL1_2XLARGE": "g1.2xlarge"
+        }
+        
+        mapped_env_type = environment_type_mapping.get(environment_type, "Linux")
+        mapped_compute_type = compute_type_mapping.get(compute_type, "g1.small")
+        
         attribute_filters = [
-            {"key": "usagetype", "value": "CodeBuild-NotFound"}
+            {"key": "usagetype", "valueRegex": f"/{mapped_env_type}:{mapped_compute_type}/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSCodeBuild", "Build", region, attribute_filters
+            "CodeBuild", "Compute", region, attribute_filters
         )
 
 
@@ -1107,16 +1071,13 @@ class KinesisQueryBuilder(QueryBuilder):
     @staticmethod
     def build_stream_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
+        shard_count = properties.get("ShardCount", 1)
+        retention_period = properties.get("RetentionPeriodHours", 24)
         
-        # Use region-specific usage type for Kinesis
-        if region_code == "USE1":
-            usagetype = "ShardHour"
-        else:
-            usagetype = f"{region_code}-ShardHour"
-        
+        # Kinesis streams use AmazonKinesis service and Kinesis Streams product family per Go file
+        # Use shard hour usage type for provisioned streams
         attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
+            {"key": "usagetype", "valueRegex": "/ShardHour/"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -1130,21 +1091,17 @@ class CloudTrailQueryBuilder(QueryBuilder):
     @staticmethod
     def build_trail_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        region_code = get_region_code(region)
+        trail_name = properties.get("TrailName", "")
+        s3_bucket_name = properties.get("S3BucketName", "")
+        include_global_service_events = properties.get("IncludeGlobalServiceEvents", True)
+        is_multi_region_trail = properties.get("IsMultiRegionTrail", False)
         
-        # Use region-specific usage type for CloudTrail
-        # Found working pattern: USE1-PaidEventsRecorded
-        if region_code == "USE1":
-            usagetype = "USE1-PaidEventsRecorded"
-        else:
-            usagetype = f"{region_code}-PaidEventsRecorded"
-        
-        attribute_filters = [
-            {"key": "usagetype", "value": usagetype}
-        ]
+        # CloudTrail uses AWSCloudTrail service per Go file
+        # Use data events product family as the primary cost component
+        attribute_filters = []
         
         return QueryBuilder._build_base_query(
-            "AWS CloudTrail", "CloudTrail", region, attribute_filters
+            "AWSCloudTrail", "Management Tools - AWS CloudTrail Data Events Recorded", region, attribute_filters
         )
 
 
@@ -1155,12 +1112,14 @@ class BackupQueryBuilder(QueryBuilder):
     def build_vault_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Backup Vault uses AWSBackup service and AWS Backup Storage product family per Go file
+        # Use EFS warm backup as the primary cost component
         attribute_filters = [
-            {"key": "usagetype", "value": "BackupStorage"}
+            {"key": "usagetype", "valueRegex": "/WarmStorage-ByteHrs-EFS$/i"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSBackup", "Backup Storage", region, attribute_filters
+            "AWSBackup", "AWS Backup Storage", region, attribute_filters
         )
 
 
@@ -1171,12 +1130,14 @@ class TransferQueryBuilder(QueryBuilder):
     def build_server_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Transfer Family uses AWSTransfer service and AWS Transfer Family product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "ProtocolEndpoint"}
+            {"key": "usagetype", "valueRegex": "/^[A-Z0-9]*-ProtocolHours$/"},
+            {"key": "operation", "valueRegex": "/^FTP:S3$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSTransfer", "Transfer Server", region, attribute_filters
+            "AWSTransfer", "AWS Transfer Family", region, attribute_filters
         )
 
 
@@ -1187,30 +1148,33 @@ class SSMQueryBuilder(QueryBuilder):
     def build_parameter_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         parameter_type = properties.get("Type", "String")
+        tier = properties.get("Tier", "Standard")
         
-        if parameter_type == "SecureString":
+        # SSM Parameter uses AWSSystemsManager service per Go file
+        # Only advanced tier parameters have costs - standard tier is free
+        if tier.lower() == "advanced":
+            # Advanced tier has parameter storage costs
             attribute_filters = [
-                {"key": "usagetype", "value": "AdvancedParameter"}
+                {"key": "usagetype", "valueRegex": "/PS-Advanced-Param-Tier1/"}
             ]
+            return QueryBuilder._build_base_query(
+                "AWSSystemsManager", "AWS Systems Manager", region, attribute_filters
+            )
         else:
-            attribute_filters = [
-                {"key": "usagetype", "value": "Parameter"}
-            ]
-        
-        return QueryBuilder._build_base_query(
-            "AmazonSSM", "Parameter Store", region, attribute_filters
-        )
+            # Standard tier parameters are free - return empty query to indicate no cost
+            return ""
     
     @staticmethod
     def build_activation_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # SSM Activation uses AWSSystemsManager service per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "Activation"}
+            {"key": "usagetype", "valueRegex": "/MI-AdvInstances-Hrs/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonSSM", "Activation", region, attribute_filters
+            "AWSSystemsManager", "AWS Systems Manager", region, attribute_filters
         )
 
 
@@ -1219,26 +1183,26 @@ class CloudFrontQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_distribution_query(properties: Dict[str, Any]) -> str:
-        region = properties.get("Region", "us-east-1")
-        
+        # CloudFront is a global service, so no region filter needed
+        # CloudFront Go file shows no ProductFamily is used, only service and attribute filters
+        # Use transferType filter to match data transfer costs (most common CloudFront cost)
         attribute_filters = [
-            {"key": "usagetype", "value": "Requests-HTTP-Proxy"}
+            {"key": "transferType", "value": "CloudFront Outbound"}
         ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonCloudFront", "Content Delivery", region, attribute_filters
+        return QueryBuilder._build_global_query(
+            "AmazonCloudFront", "", attribute_filters
         )
     
     @staticmethod
     def build_function_query(properties: Dict[str, Any]) -> str:
-        region = properties.get("Region", "us-east-1")
-        
+        # CloudFront is a global service, so no region filter needed
         attribute_filters = [
-            {"key": "usagetype", "value": "Request"}
+            {"key": "usagetype", "valueRegex": "/Request/"}
         ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonCloudFront", "CloudFront Functions", region, attribute_filters
+        return QueryBuilder._build_global_query(
+            "AmazonCloudFront", "CloudFront Functions", attribute_filters
         )
 
 
@@ -1249,12 +1213,14 @@ class DocumentDBQueryBuilder(QueryBuilder):
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # DocumentDB Cluster uses AmazonDocDB service and Storage Snapshot product family per Go file
+        # Only has backup storage costs
         attribute_filters = [
-            {"key": "databaseEngine", "value": "DocumentDB"}
+            {"key": "usagetype", "valueRegex": "/(^|-)BackupUsage$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonDocDB", "Database Cluster", region, attribute_filters
+            "AmazonDocDB", "Storage Snapshot", region, attribute_filters
         )
     
     @staticmethod
@@ -1262,9 +1228,10 @@ class DocumentDBQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         instance_class = properties.get("DBInstanceClass", "db.t3.medium")
         
+        # DocumentDB uses AmazonDocDB service and Database Instance product family per Go file
         attribute_filters = [
             {"key": "instanceType", "value": instance_class},
-            {"key": "databaseEngine", "value": "DocumentDB"}
+            {"key": "volumeType", "value": "General Purpose"}
         ]
         
         return QueryBuilder._build_base_query(
@@ -1292,13 +1259,15 @@ class NeptuneQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         instance_class = properties.get("DBInstanceClass", "db.t3.medium")
         
+        # Neptune uses AmazonNeptune service and no ProductFamily per Go file
+        # Uses specific attribute filters for instanceType and usagetype
         attribute_filters = [
-            {"key": "instanceType", "value": instance_class},
-            {"key": "databaseEngine", "value": "Neptune"}
+            {"key": "instanceType", "value": instance_class.lower()},
+            {"key": "usagetype", "valueRegex": f"/InstanceUsage:{instance_class.lower()}$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonNeptune", "Database Instance", region, attribute_filters
+            "AmazonNeptune", "", region, attribute_filters
         )
 
 
@@ -1308,14 +1277,20 @@ class ElasticsearchQueryBuilder(QueryBuilder):
     @staticmethod
     def build_domain_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        instance_type = properties.get("InstanceType", "t3.small.elasticsearch")
+        cluster_config = properties.get("ClusterConfig", {})
+        instance_type = cluster_config.get("InstanceType", "m4.large.elasticsearch")
+        
+        # Elasticsearch uses AmazonES service and Amazon OpenSearch Service Instance product family per Go file
+        # Convert elasticsearch instance type to search instance type (opensearchifyClusterInstanceType function)
+        opensearch_instance_type = instance_type.replace(".elasticsearch", ".search")
         
         attribute_filters = [
-            {"key": "instanceType", "value": instance_type}
+            {"key": "usagetype", "valueRegex": "/ESInstance/"},
+            {"key": "instanceType", "value": opensearch_instance_type}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonES", "Search Instance", region, attribute_filters
+            "AmazonES", "Amazon OpenSearch Service Instance", region, attribute_filters
         )
 
 
@@ -1327,12 +1302,33 @@ class LightsailQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         bundle_id = properties.get("BundleId", "nano_2_0")
         
+        # Lightsail uses AmazonLightsail service and Lightsail Instance product family per Go file
+        # Parse bundle ID to get memory size
+        bundle_prefix_mappings = {
+            "nano": "0.5GB",
+            "micro": "1GB", 
+            "small": "2GB",
+            "medium": "4GB",
+            "large": "8GB",
+            "xlarge": "16GB",
+            "2xlarge": "32GB",
+            "4xlarge": "64GB",
+        }
+        
+        bundle_prefix = bundle_id.split("_")[0].lower()
+        memory = bundle_prefix_mappings.get(bundle_prefix, bundle_prefix)
+        
+        # Check for Windows
+        operating_system_suffix = "_win" if "_win_" in bundle_id.lower() else ""
+        
+        usage_type_regex = f"-BundleUsage:{memory}{operating_system_suffix}$"
+        
         attribute_filters = [
-            {"key": "bundleId", "value": bundle_id}
+            {"key": "usagetype", "valueRegex": f"/{usage_type_regex}/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonLightsail", "Instance", region, attribute_filters
+            "AmazonLightsail", "Lightsail Instance", region, attribute_filters
         )
 
 
@@ -1344,14 +1340,22 @@ class MQQueryBuilder(QueryBuilder):
         region = properties.get("Region", "us-east-1")
         instance_type = properties.get("HostInstanceType", "mq.t3.micro")
         engine_type = properties.get("EngineType", "ActiveMQ")
+        deployment_mode = properties.get("DeploymentMode", "SINGLE_INSTANCE")
+        
+        # MQ Broker uses AmazonMQ service and Broker Instances product family per Go file
+        # Determine deployment option
+        is_multi_az = deployment_mode.lower() in ["active_standby_multi_az", "cluster_multi_az"]
+        deployment_option = "Multi-AZ" if is_multi_az else "Single-AZ"
         
         attribute_filters = [
-            {"key": "instanceType", "value": instance_type},
-            {"key": "brokerEngine", "value": engine_type}
+            {"key": "usagetype", "valueRegex": f"/{instance_type}/"},
+            {"key": "brokerEngine", "valueRegex": f"/{engine_type}/"},
+            {"key": "deploymentOption", "valueRegex": f"/{deployment_option}/"},
+            {"key": "operation", "valueRegex": "/CreateBroker/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonMQ", "Message Broker", region, attribute_filters
+            "AmazonMQ", "Broker Instances", region, attribute_filters
         )
 
 
@@ -1361,14 +1365,17 @@ class MSKQueryBuilder(QueryBuilder):
     @staticmethod
     def build_cluster_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
-        instance_type = properties.get("InstanceType", "kafka.t3.small")
+        broker_node_group_info = properties.get("BrokerNodeGroupInfo", {})
+        instance_type = broker_node_group_info.get("InstanceType", "kafka.t3.small")
         
+        # MSK uses AmazonMSK service and specific product family per Go file
         attribute_filters = [
-            {"key": "instanceType", "value": instance_type}
+            {"key": "usagetype", "valueRegex": f"/{instance_type}/i"},
+            {"key": "locationType", "value": "AWS Region"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AmazonMSK", "Kafka Cluster", region, attribute_filters
+            "AmazonMSK", "Managed Streaming for Apache Kafka (MSK)", region, attribute_filters
         )
 
 
@@ -1379,24 +1386,26 @@ class ConfigQueryBuilder(QueryBuilder):
     def build_rule_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Config uses AWSConfig service and Management Tools - AWS Config product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "ConfigurationItemRecorded"}
+            {"key": "usagetype", "valueRegex": "/ConfigurationItemRecorded$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSConfig", "Config Rule", region, attribute_filters
+            "AWSConfig", "Management Tools - AWS Config", region, attribute_filters
         )
     
     @staticmethod
     def build_recorder_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         
+        # Config Configuration Recorder uses AWSConfig service and Management Tools - AWS Config product family per Go file
         attribute_filters = [
-            {"key": "usagetype", "value": "ConfigurationItemRecorded"}
+            {"key": "usagetype", "valueRegex": "/ConfigurationItemRecorded$/"}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSConfig", "Configuration Recorder", region, attribute_filters
+            "AWSConfig", "Management Tools - AWS Config", region, attribute_filters
         )
 
 
@@ -1407,13 +1416,25 @@ class DMSQueryBuilder(QueryBuilder):
     def build_replication_instance_query(properties: Dict[str, Any]) -> str:
         region = properties.get("Region", "us-east-1")
         instance_class = properties.get("ReplicationInstanceClass", "dms.t3.micro")
+        multi_az = properties.get("MultiAZ", False)
+        
+        # DMS uses AWSDatabaseMigrationSvc service per Go file
+        # Parse instance type from the class
+        instance_type_parts = instance_class.split(".")
+        if len(instance_type_parts) >= 3:
+            instance_type = ".".join(instance_type_parts[1:])
+        else:
+            instance_type = instance_class
+        
+        availability_zone = "Multiple" if multi_az else "Single"
         
         attribute_filters = [
-            {"key": "instanceType", "value": instance_class}
+            {"key": "instanceType", "value": instance_type},
+            {"key": "availabilityZone", "value": availability_zone}
         ]
         
         return QueryBuilder._build_base_query(
-            "AWSDatabaseMigrationService", "Database Migration", region, attribute_filters
+            "AWSDatabaseMigrationSvc", "", region, attribute_filters
         )
 
 
@@ -1871,15 +1892,14 @@ class Route53AdvancedQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_record_set_query(properties: Dict[str, Any]) -> str:
-        region = properties.get("Region", "us-east-1")
-        
         # DNS queries are charged per query, not per record
+        # Route53 is a global service, so no region filter needed
         attribute_filters = [
             {"key": "usagetype", "value": "DNS-Queries"}
         ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonRoute53", "DNS Query", region, attribute_filters
+        return QueryBuilder._build_global_query(
+            "AmazonRoute53", "DNS Query", attribute_filters
         )
 
 
@@ -1888,14 +1908,13 @@ class Route53ResolverQueryBuilder(QueryBuilder):
     
     @staticmethod
     def build_resolver_endpoint_query(properties: Dict[str, Any]) -> str:
-        region = properties.get("Region", "us-east-1")
-        
+        # Route53 Resolver is a global service, so no region filter needed
         attribute_filters = [
             {"key": "usagetype", "value": "ResolverEndpoint"}
         ]
         
-        return QueryBuilder._build_base_query(
-            "AmazonRoute53", "Resolver Endpoint", region, attribute_filters
+        return QueryBuilder._build_global_query(
+            "AmazonRoute53", "Resolver Endpoint", attribute_filters
         )
 
 

@@ -111,7 +111,7 @@ Resources:
   TestEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.micro
+      InstanceType: m5.large
       ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (will vary by region)
       SubnetId: !Ref TestSubnet
       SecurityGroupIds:
